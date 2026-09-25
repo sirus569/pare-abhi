@@ -55,6 +55,10 @@ const nextConfig: NextConfig = {
   },
 };
 
+module.exports = {
+  allowedDevOrigins: ['10.168.168.94', 'localhost'],
+}
+
 export default nextConfig;
 
 // Make Cloudflare bindings (D1, Durable Objects, etc. declared in wrangler.toml)
