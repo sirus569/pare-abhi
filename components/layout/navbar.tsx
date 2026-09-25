@@ -11,6 +11,7 @@ import {
   Target,
   Repeat,
   Store,
+  Building2,
   Brain,
   PanelLeftClose,
   PanelLeft,
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { href: "/recurring", label: "RECURRING", icon: Repeat },
   { href: "/categories", label: "CATEGORIES", icon: Tag },
   { href: "/goals", label: "GOALS", icon: Target },
+  { href: "/properties", label: "PROPERTIES", icon: Building2 },
   { href: "/connect", label: "CLAUDE", icon: Brain },
 ];
 

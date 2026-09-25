@@ -28,6 +28,7 @@ import type {
   ReimbursementSummary,
 } from "../db/tags";
 import type { SpendingGoal, GoalProgress } from "../db/goals";
+import type { PropertySummary, PropertyType } from "../db/properties";
 import type { ManualEntry, NetWorthData } from "../db/networth";
 import type {
   MonthlyTotal,
@@ -399,6 +400,53 @@ export interface ImportRepo {
   rowsInWindow(accountKind: string, fromDate: string, toDate: string): Promise<ImportedWindowRow[]>;
 }
 
+// Properties (lib/db/properties.ts): address + mortgage + recurring expenses
+// + rental income tracking. Standalone for now — no Net Worth/Income/
+// Cashflow wiring yet. Deliberately WIPED by the /api/data DANGER ZONE wipe,
+// unlike rules/goals/marks/account_meta (see migration 014's header).
+export interface PropertyRepo {
+  list(): Promise<PropertySummary[]>;
+  get(id: number): Promise<PropertySummary | null>;
+  create(input: {
+    name: string;
+    address?: string | null;
+    property_type: PropertyType;
+    monthly_rental_income?: number | null;
+  }): Promise<number>;
+  update(
+    id: number,
+    input: {
+      name: string;
+      address?: string | null;
+      property_type: PropertyType;
+      monthly_rental_income?: number | null;
+    }
+  ): Promise<void>;
+  delete(id: number): Promise<void>;
+  setMortgage(
+    propertyId: number,
+    input: {
+      outstanding_amount: number;
+      date_opened: string;
+      rate: number;
+      amortization_years: number;
+      payment_override?: number | null;
+    }
+  ): Promise<void>;
+  deleteMortgage(propertyId: number): Promise<void>;
+  addExpense(propertyId: number, input: { label: string; monthly_amount: number }): Promise<number>;
+  // propertyId scopes the write — an (propertyId, id) pair that doesn't
+  // actually belong together throws, rather than silently no-op-ing.
+  updateExpense(
+    propertyId: number,
+    id: number,
+    input: { label: string; monthly_amount: number }
+  ): Promise<void>;
+  deleteExpense(propertyId: number, id: number): Promise<void>;
+  addValueEntry(propertyId: number, input: { value: number; effective_date: string }): Promise<number>;
+  deleteValueEntry(propertyId: number, id: number): Promise<void>;
+}
+
 // --- The aggregate contract ------------------------------------------------
 
 export interface Repo {
@@ -426,6 +474,7 @@ export interface Repo {
   waitlist: WaitlistRepo;
   feedback: FeedbackRepo;
   imports: ImportRepo;
+  properties: PropertyRepo;
 
   // Group several writes into ONE durability boundary. Every write issued by `fn`
   // runs against the open connection, and the backend persists exactly once after
