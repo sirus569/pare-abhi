@@ -22,7 +22,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { PALETTE } from "@/lib/colors";
 
@@ -91,6 +90,7 @@ export default function PropertiesPage() {
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [manageId, setManageId] = useState<number | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
 
   const fetchProperties = useCallback(async () => {
     const res = await fetch("/api/properties");
@@ -104,6 +104,7 @@ export default function PropertiesPage() {
   }, [fetchProperties]);
 
   const managing = properties.find((p) => p.id === manageId) ?? null;
+  const editing = properties.find((p) => p.id === editId) ?? null;
 
   if (loading) {
     return (
@@ -122,11 +123,22 @@ export default function PropertiesPage() {
         <h1 className="font-mono text-2xl font-bold tracking-tight uppercase">
           PROPERTIES
         </h1>
-        <AddPropertyDialog
-          open={addOpen}
-          onOpenChange={setAddOpen}
-          onSaved={fetchProperties}
-        />
+        <>
+          <Button
+            variant="outline"
+            onClick={() => setAddOpen(true)}
+            className="font-mono text-xs tracking-widest uppercase"
+          >
+            ADD PROPERTY
+          </Button>
+          <PropertyDetailsDialog
+            mode="create"
+            property={null}
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            onSaved={fetchProperties}
+          />
+        </>
       </div>
 
       {properties.length === 0 ? (
@@ -137,16 +149,36 @@ export default function PropertiesPage() {
             </p>
             <p className="text-xs text-muted-foreground max-w-md mx-auto">
               Add a property to track its mortgage, recurring expenses, and
-              (if it's a rental) net income.
+              (if it&apos;s a rental) net income.
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {properties.map((p) => (
-            <PropertyCard key={p.id} property={p} onManage={() => setManageId(p.id)} />
+            <PropertyCard
+              key={p.id}
+              property={p}
+              onManage={() => setManageId(p.id)}
+              onEdit={() => setEditId(p.id)}
+            />
           ))}
         </div>
+      )}
+
+      {editing && (
+        <PropertyDetailsDialog
+          // Remounts (fresh useState initializers) if the target property
+          // ever changes while the dialog is open, instead of an effect that
+          // re-syncs form fields — the React-recommended way to reset state
+          // on a prop identity change.
+          key={editing.id}
+          mode="edit"
+          property={editing}
+          open={editId !== null}
+          onOpenChange={(open) => !open && setEditId(null)}
+          onSaved={fetchProperties}
+        />
       )}
 
       {managing && (
@@ -164,9 +196,11 @@ export default function PropertiesPage() {
 function PropertyCard({
   property,
   onManage,
+  onEdit,
 }: {
   property: PropertySummary;
   onManage: () => void;
+  onEdit: () => void;
 }) {
   const isRental = property.property_type === "rental";
   return (
@@ -223,31 +257,51 @@ function PropertyCard({
           </div>
         )}
 
-        <Button
-          variant="outline"
-          onClick={onManage}
-          className="w-full font-mono text-xs tracking-widest uppercase mt-1"
-        >
-          MANAGE
-        </Button>
+        <div className="flex gap-2 mt-1">
+          <Button
+            variant="outline"
+            onClick={onEdit}
+            className="flex-1 font-mono text-xs tracking-widest uppercase"
+          >
+            EDIT
+          </Button>
+          <Button
+            variant="outline"
+            onClick={onManage}
+            className="flex-1 font-mono text-xs tracking-widest uppercase"
+          >
+            MANAGE
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function AddPropertyDialog({
+// Shared by both "ADD PROPERTY" (property = null) and the per-card "EDIT"
+// button (property = the row being edited) — the two are the same form,
+// differing only in which action they POST and whether fields start blank
+// or pre-filled. There is no DialogTrigger here; the caller owns the open
+// state and renders its own trigger button.
+function PropertyDetailsDialog({
+  mode,
+  property,
   open,
   onOpenChange,
   onSaved,
 }: {
+  mode: "create" | "edit";
+  property: PropertySummary | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
-  const [propertyType, setPropertyType] = useState<PropertyType>("primary");
-  const [rentalIncome, setRentalIncome] = useState("");
+  const [name, setName] = useState(property?.name ?? "");
+  const [address, setAddress] = useState(property?.address ?? "");
+  const [propertyType, setPropertyType] = useState<PropertyType>(property?.property_type ?? "primary");
+  const [rentalIncome, setRentalIncome] = useState(
+    property?.monthly_rental_income != null ? String(property.monthly_rental_income) : ""
+  );
   const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
@@ -258,24 +312,27 @@ function AddPropertyDialog({
     setError(null);
   };
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       setError("Name is required");
       return;
     }
-    const { error: err } = await postAction({
-      action: "create_property",
+    const body: Record<string, unknown> = {
+      action: mode === "create" ? "create_property" : "update_property",
       name,
       address: address || null,
       property_type: propertyType,
       monthly_rental_income:
         propertyType === "rental" && rentalIncome ? Number(rentalIncome) : null,
-    });
+    };
+    if (mode === "edit") body.id = property!.id;
+
+    const { error: err } = await postAction(body);
     if (err) {
       setError(err);
       return;
     }
-    reset();
+    if (mode === "create") reset();
     onOpenChange(false);
     onSaved();
   };
@@ -285,16 +342,13 @@ function AddPropertyDialog({
       open={open}
       onOpenChange={(o) => {
         onOpenChange(o);
-        if (!o) reset();
+        if (!o && mode === "create") reset();
       }}
     >
-      <DialogTrigger className="inline-flex items-center justify-center border border-input bg-background px-4 py-2 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground">
-        ADD PROPERTY
-      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="font-mono tracking-widest uppercase">
-            ADD PROPERTY
+            {mode === "create" ? "ADD PROPERTY" : "EDIT PROPERTY"}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 mt-4">
@@ -356,11 +410,17 @@ function AddPropertyDialog({
                   className="font-mono"
                 />
               </InputGroup>
+              {mode === "edit" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Switching away from RENTAL hides net income but keeps this figure, so switching
+                  back later needs no re-entry.
+                </p>
+              )}
             </div>
           )}
           {error && <p className="font-mono text-xs text-destructive">{error}</p>}
-          <Button onClick={handleAdd} className="w-full font-mono text-xs tracking-widest uppercase">
-            ADD PROPERTY
+          <Button onClick={handleSave} className="w-full font-mono text-xs tracking-widest uppercase">
+            {mode === "create" ? "ADD PROPERTY" : "SAVE CHANGES"}
           </Button>
         </div>
       </DialogContent>

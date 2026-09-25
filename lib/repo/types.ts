@@ -435,10 +435,16 @@ export interface PropertyRepo {
   ): Promise<void>;
   deleteMortgage(propertyId: number): Promise<void>;
   addExpense(propertyId: number, input: { label: string; monthly_amount: number }): Promise<number>;
-  updateExpense(id: number, input: { label: string; monthly_amount: number }): Promise<void>;
-  deleteExpense(id: number): Promise<void>;
+  // propertyId scopes the write — an (propertyId, id) pair that doesn't
+  // actually belong together throws, rather than silently no-op-ing.
+  updateExpense(
+    propertyId: number,
+    id: number,
+    input: { label: string; monthly_amount: number }
+  ): Promise<void>;
+  deleteExpense(propertyId: number, id: number): Promise<void>;
   addValueEntry(propertyId: number, input: { value: number; effective_date: string }): Promise<number>;
-  deleteValueEntry(id: number): Promise<void>;
+  deleteValueEntry(propertyId: number, id: number): Promise<void>;
 }
 
 // --- The aggregate contract ------------------------------------------------

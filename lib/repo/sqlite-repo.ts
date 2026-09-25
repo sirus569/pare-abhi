@@ -373,9 +373,9 @@ export class SqliteRepo implements Repo {
     setMortgage: (propertyId, input) => this.write(() => void setMortgage(propertyId, input)),
     deleteMortgage: (propertyId) => this.write(() => deleteMortgage(propertyId)),
     addExpense: (propertyId, input) => this.write(() => addExpense(propertyId, input)),
-    updateExpense: (id, input) => this.write(() => updateExpense(id, input)),
-    deleteExpense: (id) => this.write(() => deleteExpense(id)),
+    updateExpense: (propertyId, id, input) => this.write(() => updateExpense(propertyId, id, input)),
+    deleteExpense: (propertyId, id) => this.write(() => deleteExpense(propertyId, id)),
     addValueEntry: (propertyId, input) => this.write(() => addValueEntry(propertyId, input)),
-    deleteValueEntry: (id) => this.write(() => deleteValueEntry(id)),
+    deleteValueEntry: (propertyId, id) => this.write(() => deleteValueEntry(propertyId, id)),
   };
 }

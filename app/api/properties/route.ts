@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
-import type { PropertyType } from "@/lib/db/properties";
+import { validateMortgageInput, type PropertyType } from "@/lib/db/properties";
 
 // Properties (address, mortgage, expenses, rental income). Single
 // action-discriminated route, same convention as /api/recurring and
@@ -8,13 +8,26 @@ import type { PropertyType } from "@/lib/db/properties";
 // its own nested dynamic route in this codebase, it gets an `action` field.
 
 const PROPERTY_TYPES: PropertyType[] = ["primary", "rental", "vacation", "other"];
-const RATE_MIN = 0;
-const RATE_MAX = 25;
-const AMORTIZATION_MIN_YEARS = 1;
-const AMORTIZATION_MAX_YEARS = 40;
 
 function badRequest(error: string) {
   return Response.json({ error }, { status: 400 });
+}
+
+function notFound(error: string) {
+  return Response.json({ error }, { status: 404 });
+}
+
+// repo.properties.setMortgage/updateExpense/deleteExpense/deleteValueEntry
+// throw on invalid input or a (propertyId, id) pair that doesn't match a real
+// row — that's the source-of-truth validation (lib/db/properties.ts), not
+// just this route's job. Convert it to an HTTP response instead of a 500.
+async function runOrRespondError<T>(fn: () => Promise<T>): Promise<T | Response> {
+  try {
+    return await fn();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Request failed";
+    return message.includes("not found") ? notFound(message) : badRequest(message);
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -109,18 +122,8 @@ export async function POST(request: NextRequest) {
       if (typeof dateOpened !== "string" || !dateOpened) {
         return badRequest("date_opened required");
       }
-      if (!Number.isFinite(rate) || rate < RATE_MIN || rate > RATE_MAX) {
-        return badRequest(`rate must be between ${RATE_MIN} and ${RATE_MAX}`);
-      }
-      if (
-        !Number.isInteger(amortizationYears) ||
-        amortizationYears < AMORTIZATION_MIN_YEARS ||
-        amortizationYears > AMORTIZATION_MAX_YEARS
-      ) {
-        return badRequest(
-          `amortization_years must be an integer between ${AMORTIZATION_MIN_YEARS} and ${AMORTIZATION_MAX_YEARS}`
-        );
-      }
+      const mortgageError = validateMortgageInput(rate, amortizationYears);
+      if (mortgageError) return badRequest(mortgageError);
       let paymentOverride: number | null | undefined;
       if (body.payment_override === undefined) {
         paymentOverride = undefined; // keep existing override untouched
@@ -133,13 +136,16 @@ export async function POST(request: NextRequest) {
         }
         paymentOverride = parsed;
       }
-      await repo.properties.setMortgage(propertyId, {
-        outstanding_amount: outstandingAmount,
-        date_opened: dateOpened,
-        rate,
-        amortization_years: amortizationYears,
-        payment_override: paymentOverride,
-      });
+      const setResult = await runOrRespondError(() =>
+        repo.properties.setMortgage(propertyId, {
+          outstanding_amount: outstandingAmount,
+          date_opened: dateOpened,
+          rate,
+          amortization_years: amortizationYears,
+          payment_override: paymentOverride,
+        })
+      );
+      if (setResult instanceof Response) return setResult;
       return Response.json({ property: await repo.properties.get(propertyId) });
     }
 
@@ -177,7 +183,10 @@ export async function POST(request: NextRequest) {
       if (!Number.isFinite(monthlyAmount) || monthlyAmount < 0) {
         return badRequest("monthly_amount must be a non-negative number");
       }
-      await repo.properties.updateExpense(id, { label: label.trim(), monthly_amount: monthlyAmount });
+      const updateResult = await runOrRespondError(() =>
+        repo.properties.updateExpense(propertyId, id, { label: label.trim(), monthly_amount: monthlyAmount })
+      );
+      if (updateResult instanceof Response) return updateResult;
       return Response.json({ property: await repo.properties.get(propertyId) });
     }
 
@@ -186,7 +195,8 @@ export async function POST(request: NextRequest) {
       const propertyId = Number(body.property_id);
       if (!Number.isFinite(id)) return badRequest("id required");
       if (!Number.isFinite(propertyId)) return badRequest("property_id required");
-      await repo.properties.deleteExpense(id);
+      const deleteResult = await runOrRespondError(() => repo.properties.deleteExpense(propertyId, id));
+      if (deleteResult instanceof Response) return deleteResult;
       return Response.json({ property: await repo.properties.get(propertyId) });
     }
 
@@ -213,7 +223,8 @@ export async function POST(request: NextRequest) {
       const propertyId = Number(body.property_id);
       if (!Number.isFinite(id)) return badRequest("id required");
       if (!Number.isFinite(propertyId)) return badRequest("property_id required");
-      await repo.properties.deleteValueEntry(id);
+      const deleteResult = await runOrRespondError(() => repo.properties.deleteValueEntry(propertyId, id));
+      if (deleteResult instanceof Response) return deleteResult;
       return Response.json({ property: await repo.properties.get(propertyId) });
     }
 

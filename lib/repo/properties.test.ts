@@ -142,12 +142,12 @@ test("deleting a property removes its mortgage, expenses, and value history", as
 test("expense and value-history CRUD round-trip", async () => {
   const id = await repo.properties.create({ name: "Expense Test", property_type: "primary" });
   const expenseId = await repo.properties.addExpense(id, { label: "HOA", monthly_amount: 150 });
-  await repo.properties.updateExpense(expenseId, { label: "HOA fees", monthly_amount: 175 });
+  await repo.properties.updateExpense(id, expenseId, { label: "HOA fees", monthly_amount: 175 });
   let p = await repo.properties.get(id);
   assert.equal(p!.expenses[0].label, "HOA fees");
   assert.equal(p!.expenses[0].monthly_amount, 175);
 
-  await repo.properties.deleteExpense(expenseId);
+  await repo.properties.deleteExpense(id, expenseId);
   p = await repo.properties.get(id);
   assert.equal(p!.expenses.length, 0);
 
@@ -157,8 +157,48 @@ test("expense and value-history CRUD round-trip", async () => {
   });
   p = await repo.properties.get(id);
   assert.equal(p!.valueHistory.length, 1);
-  await repo.properties.deleteValueEntry(valueId);
+  await repo.properties.deleteValueEntry(id, valueId);
   p = await repo.properties.get(id);
   assert.equal(p!.valueHistory.length, 0);
   assert.equal(p!.currentValue, 0);
+});
+
+test("mutating an expense or value entry under the wrong property is rejected, not a silent no-op", async () => {
+  const idA = await repo.properties.create({ name: "Property A", property_type: "primary" });
+  const idB = await repo.properties.create({ name: "Property B", property_type: "primary" });
+  const expenseId = await repo.properties.addExpense(idA, { label: "Insurance", monthly_amount: 80 });
+  const valueId = await repo.properties.addValueEntry(idA, { value: 300000, effective_date: "2024-01-01" });
+
+  await assert.rejects(() =>
+    repo.properties.updateExpense(idB, expenseId, { label: "Hijacked", monthly_amount: 1 })
+  );
+  await assert.rejects(() => repo.properties.deleteExpense(idB, expenseId));
+  await assert.rejects(() => repo.properties.deleteValueEntry(idB, valueId));
+
+  // Untouched under the correct property.
+  const a = await repo.properties.get(idA);
+  assert.equal(a!.expenses[0].label, "Insurance");
+  assert.equal(a!.valueHistory.length, 1);
+});
+
+test("setMortgage rejects an out-of-range rate or amortization even without going through the API route", async () => {
+  const id = await repo.properties.create({ name: "Bad Mortgage", property_type: "primary" });
+  await assert.rejects(() =>
+    repo.properties.setMortgage(id, {
+      outstanding_amount: 100000,
+      date_opened: "2024-01-01",
+      rate: -5,
+      amortization_years: 25,
+    })
+  );
+  await assert.rejects(() =>
+    repo.properties.setMortgage(id, {
+      outstanding_amount: 100000,
+      date_opened: "2024-01-01",
+      rate: 5,
+      amortization_years: 200,
+    })
+  );
+  const p = await repo.properties.get(id);
+  assert.equal(p!.mortgage, null, "the invalid writes must not have partially applied");
 });

@@ -169,6 +169,12 @@ export function setMortgage(
     payment_override?: number | null;
   }
 ): PropertyMortgage {
+  // Enforced HERE, not just in the API route, so any caller (a future MCP
+  // tool, a script, a direct repo call) gets the same guardrail — the route's
+  // check is UX (a fast 400), this one is the actual contract.
+  const validationError = validateMortgageInput(input.rate, input.amortization_years);
+  if (validationError) throw new Error(validationError);
+
   const db = getDb();
   const calculated = calculateMortgagePayment(
     input.outstanding_amount,
@@ -230,17 +236,33 @@ export function addExpense(
   return Number(result.lastInsertRowid);
 }
 
-export function updateExpense(id: number, input: { label: string; monthly_amount: number }): void {
+// property_id is part of the WHERE clause, not just a response-refetch hint —
+// a mismatched (propertyId, id) pair must fail loudly rather than silently
+// mutating (or no-op-ing on) a row that belongs to a different property.
+export function updateExpense(
+  propertyId: number,
+  id: number,
+  input: { label: string; monthly_amount: number }
+): void {
   const db = getDb();
-  db.prepare("UPDATE property_expenses SET label = @label, monthly_amount = @monthly_amount WHERE id = @id").run({
-    ...input,
-    id,
-  });
+  const result = db
+    .prepare(
+      "UPDATE property_expenses SET label = @label, monthly_amount = @monthly_amount WHERE id = @id AND property_id = @property_id"
+    )
+    .run({ ...input, id, property_id: propertyId });
+  if (result.changes === 0) {
+    throw new Error(`Expense ${id} not found for property ${propertyId}`);
+  }
 }
 
-export function deleteExpense(id: number): void {
+export function deleteExpense(propertyId: number, id: number): void {
   const db = getDb();
-  db.prepare("DELETE FROM property_expenses WHERE id = ?").run(id);
+  const result = db
+    .prepare("DELETE FROM property_expenses WHERE id = ? AND property_id = ?")
+    .run(id, propertyId);
+  if (result.changes === 0) {
+    throw new Error(`Expense ${id} not found for property ${propertyId}`);
+  }
 }
 
 export function listValueHistory(propertyId: number): PropertyValueEntry[] {
@@ -266,9 +288,14 @@ export function addValueEntry(
   return Number(result.lastInsertRowid);
 }
 
-export function deleteValueEntry(id: number): void {
+export function deleteValueEntry(propertyId: number, id: number): void {
   const db = getDb();
-  db.prepare("DELETE FROM property_value_history WHERE id = ?").run(id);
+  const result = db
+    .prepare("DELETE FROM property_value_history WHERE id = ? AND property_id = ?")
+    .run(id, propertyId);
+  if (result.changes === 0) {
+    throw new Error(`Value entry ${id} not found for property ${propertyId}`);
+  }
 }
 
 export function getPropertySummary(propertyId: number): PropertySummary | null {
