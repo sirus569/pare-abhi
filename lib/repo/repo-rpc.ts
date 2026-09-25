@@ -167,6 +167,20 @@ export const REPO_CATALOGUE: RepoCatalogue = {
   waitlist: { join: "write", count: "read", list: "read" },
   feedback: { submit: "write", list: "read" },
   imports: { create: "write", list: "read", delete: "write", watermarks: "read", rowsInWindow: "read" },
+  properties: {
+    list: "read",
+    get: "read",
+    create: "write",
+    update: "write",
+    delete: "write",
+    setMortgage: "write",
+    deleteMortgage: "write",
+    addExpense: "write",
+    updateExpense: "write",
+    deleteExpense: "write",
+    addValueEntry: "write",
+    deleteValueEntry: "write",
+  },
 };
 
 // True for methods DoRepoClient.batch() must buffer (see MethodKind above).

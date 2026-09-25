@@ -138,7 +138,26 @@ export async function DELETE(request: NextRequest) {
     const reimbursements = db.prepare("DELETE FROM reimbursements").run().changes;
     const txns = db.prepare("DELETE FROM transactions").run().changes;
     const stmts = db.prepare("DELETE FROM statements").run().changes;
-    return { transactions: txns, statements: stmts, overrides, splits, tags, reimbursements };
+    // Properties are a deliberate deviation from the rules/goals/marks
+    // survive-wipe convention (see migration 014's header) — cleared here,
+    // children first (property_mortgages/property_expenses/
+    // property_value_history reference properties(id)).
+    const propertyValueHistory = db.prepare("DELETE FROM property_value_history").run().changes;
+    const propertyExpenses = db.prepare("DELETE FROM property_expenses").run().changes;
+    const propertyMortgages = db.prepare("DELETE FROM property_mortgages").run().changes;
+    const properties = db.prepare("DELETE FROM properties").run().changes;
+    return {
+      transactions: txns,
+      statements: stmts,
+      overrides,
+      splits,
+      tags,
+      reimbursements,
+      properties,
+      propertyMortgages,
+      propertyExpenses,
+      propertyValueHistory,
+    };
   });
   const deleted = wipe();
 

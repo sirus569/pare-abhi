@@ -27,6 +27,7 @@ import type {
   WaitlistRepo,
   FeedbackRepo,
   ImportRepo,
+  PropertyRepo,
 } from "./types";
 
 import {
@@ -112,6 +113,20 @@ import {
   getImportWatermarks,
   getImportedRowsInWindow,
 } from "../db/imports";
+import {
+  listPropertiesWithSummary,
+  getPropertySummary,
+  addProperty,
+  updateProperty,
+  deleteProperty,
+  setMortgage,
+  deleteMortgage,
+  addExpense,
+  updateExpense,
+  deleteExpense,
+  addValueEntry,
+  deleteValueEntry,
+} from "../db/properties";
 
 // SqliteRepo implements the async Repo contract by delegating to the existing,
 // regression-tested lib/db/* functions. better-sqlite3 is synchronous, so each
@@ -347,5 +362,20 @@ export class SqliteRepo implements Repo {
     delete: (id) => this.write(() => deleteImport(id)),
     watermarks: () => this.read(() => getImportWatermarks()),
     rowsInWindow: (kind, from, to) => this.read(() => getImportedRowsInWindow(kind, from, to)),
+  };
+
+  properties: PropertyRepo = {
+    list: () => this.read(() => listPropertiesWithSummary()),
+    get: (id) => this.read(() => getPropertySummary(id)),
+    create: (input) => this.write(() => addProperty(input)),
+    update: (id, input) => this.write(() => updateProperty(id, input)),
+    delete: (id) => this.write(() => deleteProperty(id)),
+    setMortgage: (propertyId, input) => this.write(() => void setMortgage(propertyId, input)),
+    deleteMortgage: (propertyId) => this.write(() => deleteMortgage(propertyId)),
+    addExpense: (propertyId, input) => this.write(() => addExpense(propertyId, input)),
+    updateExpense: (id, input) => this.write(() => updateExpense(id, input)),
+    deleteExpense: (id) => this.write(() => deleteExpense(id)),
+    addValueEntry: (propertyId, input) => this.write(() => addValueEntry(propertyId, input)),
+    deleteValueEntry: (id) => this.write(() => deleteValueEntry(id)),
   };
 }
