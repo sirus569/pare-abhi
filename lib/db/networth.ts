@@ -1,5 +1,6 @@
 import { getDb } from "../db";
 import { NOT_HIDDEN_SOURCE_SQL, getAccountMetaMap } from "./accounts";
+import { listPropertiesWithSummary, type PropertySummary } from "./properties";
 
 // Statement-cadence net worth: each statement's closing balance is a
 // point-in-time observation (chequing positive, card balances negative);
@@ -24,7 +25,7 @@ export interface ManualEntry {
 export interface NetWorthAccount {
   name: string;
   label?: string; // nickname (account_meta) — display only; `name` stays the timeline key
-  type: "statement" | "manual";
+  type: "statement" | "manual" | "property";
   kind: "asset" | "liability";
   current: number; // signed: liabilities negative
   asOf: string;
@@ -55,6 +56,67 @@ export interface NetWorthData {
 interface Observation {
   date: string;
   value: number; // signed
+}
+
+export interface PropertyObservation {
+  name: string; // namespaced timeline key, e.g. "property:3:value" — NEVER the raw property name
+  label: string; // human-readable display label
+  kind: "asset" | "liability";
+  date: string;
+  value: number; // signed: liability negative
+}
+
+// Pure derivation (no DB access) — feeds Properties data into the same
+// timeline model getNetWorth() already uses for statements/manual entries.
+// Extracted as a pure function (matching lib/safe-to-spend.ts's precedent)
+// specifically so the two hazards below get fast, isolated unit tests
+// instead of only being reachable through a full DB-backed test:
+//
+// 1. NAMESPACED KEYS. The timeline model's own comments elsewhere warn that
+//    a name collision silently MERGES two accounts' histories (that's why
+//    nicknames are kept as a separate `label`, never used as the map key).
+//    A property could easily share a display name with a manual entry or
+//    another property, so the internal key here is `property:{id}:value` /
+//    `property:{id}:mortgage` — never the user-typed name — with the
+//    human-readable name kept only in `label`.
+//
+// 2. MORTGAGE ANCHOR DATE. property_mortgages is a strict UPSERT (one row
+//    per property; migration 014's UNIQUE constraint) and setMortgage()
+//    bumps `updated_at` on EVERY save, even a no-op edit. Anchoring the
+//    liability observation to `updated_at` would make that single
+//    observation's date MOVE FORWARD every time the user edits the
+//    mortgage — silently erasing the liability from already-shown past
+//    months (violating net worth's point-in-time-not-live contract, the
+//    exact bug caught on review before this shipped). `date_opened` is
+//    user-set once at creation and stays stable across balance edits in
+//    the normal "update my balance" flow, so it's the anchor used here —
+//    same trade-off (stability over per-edit precision) the app already
+//    accepts for manual_entries' user-chosen effective_date.
+export function propertyNetWorthObservations(
+  properties: PropertySummary[]
+): PropertyObservation[] {
+  const observations: PropertyObservation[] = [];
+  for (const p of properties) {
+    for (const v of p.valueHistory) {
+      observations.push({
+        name: `property:${p.id}:value`,
+        label: p.name,
+        kind: "asset",
+        date: v.effective_date,
+        value: v.value,
+      });
+    }
+    if (p.mortgage) {
+      observations.push({
+        name: `property:${p.id}:mortgage`,
+        label: `${p.name} — Mortgage`,
+        kind: "liability",
+        date: p.mortgage.date_opened,
+        value: -p.mortgage.outstanding_amount,
+      });
+    }
+  }
+  return observations;
 }
 
 export function listManualEntries(): ManualEntry[] {
@@ -129,11 +191,11 @@ export function getNetWorth(): NetWorthData {
   const entries = listManualEntries();
 
   // One observation timeline per account / manual item, values signed.
-  const timelines = new Map<string, { kind: "asset" | "liability"; type: "statement" | "manual"; obs: Observation[] }>();
+  const timelines = new Map<string, { kind: "asset" | "liability"; type: "statement" | "manual" | "property"; obs: Observation[] }>();
   const observe = (
     name: string,
     kind: "asset" | "liability",
-    type: "statement" | "manual",
+    type: "statement" | "manual" | "property",
     date: string,
     value: number
   ) => {
@@ -174,6 +236,17 @@ export function getNetWorth(): NetWorthData {
       e.effective_date,
       e.kind === "liability" ? -e.amount : e.amount
     );
+  }
+
+  // Properties: value history (asset, one observation per dated entry — a
+  // real trend) and, if set, the mortgage (liability, one observation —
+  // see propertyNetWorthObservations() for why it's anchored to
+  // date_opened, not updated_at). No hidden/closed filtering — Phase 1
+  // never added an equivalent to account_meta for the properties table, so
+  // every property with data always shows here.
+  for (const o of propertyNetWorthObservations(listPropertiesWithSummary())) {
+    labelByName.set(o.name, o.label);
+    observe(o.name, o.kind, "property", o.date, o.value);
   }
 
   if (timelines.size === 0) {

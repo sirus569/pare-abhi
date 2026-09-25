@@ -54,7 +54,7 @@ interface ManualEntry {
 interface NetWorthAccount {
   name: string;
   label?: string; // nickname from /profile account management — display only
-  type: "statement" | "manual";
+  type: "statement" | "manual" | "property";
   kind: "asset" | "liability";
   current: number;
   asOf: string;
@@ -403,7 +403,7 @@ export function NetWorthTab({
                         )}
                       </p>
                       <p className="text-muted-foreground">
-                        {a.type === "manual" ? "manual · " : ""}as of {a.asOf}
+                        {a.type === "manual" ? "manual · " : a.type === "property" ? "property · " : ""}as of {a.asOf}
                       </p>
                     </div>
                   </div>
