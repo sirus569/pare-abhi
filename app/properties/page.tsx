@@ -142,7 +142,7 @@ export default function PropertiesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[1px] bg-border border border-border">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {properties.map((p) => (
             <PropertyCard key={p.id} property={p} onManage={() => setManageId(p.id)} />
           ))}
@@ -170,8 +170,8 @@ function PropertyCard({
 }) {
   const isRental = property.property_type === "rental";
   return (
-    <Card className="rounded-none border-0">
-      <CardContent className="p-4 flex flex-col gap-3">
+    <Card>
+      <CardContent className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="font-mono text-sm font-bold uppercase">{property.name}</p>
@@ -494,7 +494,7 @@ function ManagePropertyDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] w-full sm:max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-mono tracking-widest uppercase">
             {property.name}
@@ -628,14 +628,14 @@ function ManagePropertyDialog({
                 <p className="text-xs text-muted-foreground">No recurring expenses yet.</p>
               )}
             </div>
-            <div className="flex gap-2 mt-3">
+            <div className="flex flex-col sm:flex-row gap-2 mt-3">
               <input
-                className="flex-1 border border-input bg-background px-3 py-2 font-mono text-sm"
+                className="flex-1 min-w-0 border border-input bg-background px-3 py-2 font-mono text-sm"
                 placeholder="Property tax"
                 value={expenseLabel}
                 onChange={(e) => setExpenseLabel(e.target.value)}
               />
-              <InputGroup className="w-32">
+              <InputGroup className="sm:w-32">
                 <InputGroupAddon align="inline-start">
                   <InputGroupText>$</InputGroupText>
                 </InputGroupAddon>
@@ -677,14 +677,14 @@ function ManagePropertyDialog({
                 </p>
               )}
             </div>
-            <div className="flex gap-2 mt-3">
+            <div className="flex flex-col sm:flex-row gap-2 mt-3">
               <input
                 type="date"
-                className="flex-1 border border-input bg-background px-3 py-2 font-mono text-sm"
+                className="flex-1 min-w-0 border border-input bg-background px-3 py-2 font-mono text-sm"
                 value={valueDate}
                 onChange={(e) => setValueDate(e.target.value)}
               />
-              <InputGroup className="w-32">
+              <InputGroup className="sm:w-32">
                 <InputGroupAddon align="inline-start">
                   <InputGroupText>$</InputGroupText>
                 </InputGroupAddon>
