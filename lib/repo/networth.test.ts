@@ -115,8 +115,14 @@ test("a property with value history and a mortgage produces two signed lines in 
   assert.equal(asset!.type, "property");
   assert.equal(asset!.kind, "asset");
   assert.equal(asset!.current, 500000);
+  assert.equal(asset!.label, "Rental A", "the asset line must display the property's name, not its raw timeline key");
   assert.equal(liability!.kind, "liability");
   assert.equal(liability!.current, -300000);
+  assert.equal(
+    liability!.label,
+    "Rental A — Mortgage",
+    "the liability line must display a distinct, human-readable label"
+  );
 
   const current = nw.current!;
   assert.ok(current.assets >= 500000);
@@ -142,6 +148,38 @@ test("a property sharing a display name with a manual entry does not merge histo
   assert.equal(propertyLine!.current, 250000);
 });
 
+test("a property sharing a display name with a statement account does not merge histories", async () => {
+  // A property's asset-line KEY is `property:{id}:value`, but its LABEL is
+  // the raw property name — the same name a statement's `account` field
+  // could just as easily use. This is the collision case the plan called
+  // out explicitly ("or statement account") that the manual-entry test
+  // above doesn't cover: same code path (the shared `timelines` Map keyed
+  // by `name`), different source feeding it.
+  await repo.statements.insert({
+    filename: "shared-account-name.pdf",
+    source: "cibc_chequing",
+    account: "Shared Statement Name",
+    period: "2024-01",
+    row_count: 0,
+    closing_balance: 5000,
+    closing_date: "2024-01-31",
+    account_kind: "chequing",
+  });
+  const propId = await repo.properties.create({
+    name: "Shared Statement Name",
+    property_type: "primary",
+  });
+  await repo.properties.addValueEntry(propId, { value: 275000, effective_date: "2024-01-01" });
+
+  const nw = await repo.netWorth.get();
+  const statementLine = nw.accounts.find((a) => a.type === "statement" && a.name === "Shared Statement Name");
+  const propertyLine = nw.accounts.find((a) => a.type === "property" && a.name === `property:${propId}:value`);
+  assert.ok(statementLine, "the statement account must survive as its own line");
+  assert.equal(statementLine!.current, 5000, "statement balance must not have merged with the property's");
+  assert.ok(propertyLine, "the property must survive as its own line, distinctly keyed");
+  assert.equal(propertyLine!.current, 275000);
+});
+
 test("a property with neither a value nor a mortgage does not appear in net worth at all", async () => {
   const before = (await repo.netWorth.get()).accounts.length;
   const id = await repo.properties.create({ name: "Empty Property", property_type: "vacation" });
@@ -158,9 +196,38 @@ test("net worth history before a property's first entry does not retroactively i
   await repo.properties.addValueEntry(id, { value: 350000, effective_date: "2025-06-01" });
   const nw = await repo.netWorth.get();
   const early = nw.series.find((p) => p.month < "2025-06");
-  if (early) {
-    assert.ok(!(`property:${id}:value` in early.balances), "must not appear before its first entry");
-  }
+  // Assert the premise explicitly rather than silently skipping if it ever
+  // stops holding (earlier tests in this file seed data back to 2020/2022,
+  // so an earlier month must exist) — a conditional-only check would pass
+  // vacuously if that fixture data ever changed.
+  assert.ok(early, "there must be an earlier month in the series to check against");
+  assert.ok(!(`property:${id}:value` in early!.balances), "must not appear before its first entry");
+});
+
+test("multiple property_value_history rows build a real multi-point trend in the monthly series", async () => {
+  // Not just "N observations get generated" (the pure-function test above
+  // already covers that) — this proves the MONTHLY SERIES itself carries
+  // genuinely different values at different points, not a flat
+  // carried-forward single number.
+  const id = await repo.properties.create({ name: "Appreciating House", property_type: "primary" });
+  await repo.properties.addValueEntry(id, { value: 400000, effective_date: "2021-01-01" });
+  await repo.properties.addValueEntry(id, { value: 450000, effective_date: "2022-06-01" });
+  await repo.properties.addValueEntry(id, { value: 500000, effective_date: "2023-09-01" });
+
+  const nw = await repo.netWorth.get();
+  const key = `property:${id}:value`;
+  const early = nw.series.find((p) => p.month === "2021-06"); // after the 1st entry, before the 2nd
+  const mid = nw.series.find((p) => p.month === "2022-09"); // after the 2nd entry, before the 3rd
+  const late = nw.series.find((p) => p.month === "2023-12"); // after the 3rd entry
+  assert.ok(early && mid && late, "all three checkpoint months must exist in the series");
+  assert.equal(early!.balances[key], 400000);
+  assert.equal(mid!.balances[key], 450000);
+  assert.equal(late!.balances[key], 500000);
+  assert.notEqual(
+    early!.balances[key],
+    late!.balances[key],
+    "the series must show a genuine trend, not the same value carried flat throughout"
+  );
 });
 
 test("REGRESSION: updating a mortgage's balance does not erase the liability from already-shown history", async () => {
