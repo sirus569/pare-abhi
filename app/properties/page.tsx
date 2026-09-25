@@ -564,6 +564,15 @@ function ManagePropertyDialog({
         <div className="space-y-6 mt-4">
           {error && <p className="font-mono text-xs text-destructive">{error}</p>}
 
+          <p className="text-xs text-muted-foreground">
+            These figures are for this page&apos;s own numbers only — they don&apos;t
+            automatically show up in Income, Cashflow, or Forecast. If the mortgage or
+            an expense below is actually paid from an account you upload to Pare, add a
+            category rule for that transaction on the Categories page (the same way rent
+            gets tagged) so it&apos;s counted there too. Anything paid from an account you
+            don&apos;t upload won&apos;t be tracked anywhere in Pare.
+          </p>
+
           <section>
             <p className="font-mono text-xs tracking-widest text-muted-foreground mb-2">
               MORTGAGE
