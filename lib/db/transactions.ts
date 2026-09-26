@@ -226,8 +226,14 @@ export function listTransactions(filters: TransactionFilters = {}): {
     params.source = filters.source;
   }
   if (filters.flow) {
-    conditions.push("flow = @flow");
-    params.flow = filters.flow;
+    // One flow, or a comma-separated set ("transfer,payment" — the TRANSFERS
+    // tab on /transactions). Bound per value, never interpolated.
+    const flows = filters.flow.split(",").map((f) => f.trim()).filter(Boolean);
+    const placeholders = flows.map((f, i) => {
+      params[`flow${i}`] = f;
+      return `@flow${i}`;
+    });
+    conditions.push(`flow IN (${placeholders.join(", ")})`);
   }
   if (filters.from) {
     conditions.push("txn_date >= @from");
