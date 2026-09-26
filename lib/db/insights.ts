@@ -4,6 +4,7 @@ import { SPEND_WHERE } from "./account-kinds";
 import { getForecast } from "./forecast";
 import { listGoals } from "./goals";
 import { getIncomeVsSpend } from "./income";
+import { listPropertiesWithSummary, type PropertySummary } from "./properties";
 import { median } from "./stats";
 import { getSubscriptions } from "./subscriptions";
 
@@ -50,6 +51,40 @@ interface CatTotal {
   total: number;
 }
 
+// Rental properties losing money — pure filter over Phase 1's own
+// PropertySummary.netIncome, no DB access, no dependency on any
+// transaction/month data at all. Extracted as a pure function so it gets
+// fast unit tests with plain fixtures (same precedent as
+// propertyNetWorthObservations() in lib/db/networth.ts).
+//
+// Only evaluated when monthly_rental_income is EXPLICITLY non-null (`0`
+// counts — the user typed zero on purpose, e.g. a vacant unit). A rental
+// with mortgage/expenses entered but the rent field still blank would
+// otherwise read as sharply, artificially negative (getPropertySummary's
+// `?? 0` default) — not because it's actually losing money, but because
+// setup isn't finished. Silence beats a confident-looking wrong answer.
+//
+// No "good" counterpart for a profitable rental (would be a permanent,
+// uninformative fixture — unlike an over-budget alert, "still profitable"
+// isn't news every time it's shown) and one insight per losing property,
+// never rolled up into a single "N losing rentals" line.
+export function rentalNetIncomeInsights(properties: PropertySummary[]): Insight[] {
+  const insights: Insight[] = [];
+  for (const p of properties) {
+    if (p.property_type !== "rental") continue;
+    if (p.monthly_rental_income === null) continue;
+    if (p.netIncome === null || p.netIncome >= 0) continue;
+    insights.push({
+      severity: "warn",
+      title: `${p.name} losing money`,
+      detail: `Net ${fmt(p.netIncome)}/mo — ${fmt(p.monthly_rental_income)} rent − ${fmt(
+        p.effectivePayment + p.totalExpenses
+      )} mortgage+expenses`,
+    });
+  }
+  return insights;
+}
+
 // Rule-based, fully local insights over the LATEST data month (not the calendar
 // month — data may lag). Covers goals, month-over-month category moves, net
 // cashflow, large one-offs, and unusual (history-relative) one-off charges.
@@ -57,6 +92,13 @@ interface CatTotal {
 export function getInsights(): Insight[] {
   const db = getDb();
   const insights: Insight[] = [];
+
+  // Evaluated BEFORE the months/early-return below on purpose: rental net
+  // income comes entirely from Properties' own stored numbers, never from
+  // v_transactions, so a user with properties but zero uploaded statements
+  // must still see this — the early return below is specific to the
+  // transaction-derived insights that follow it, not a "no data at all" gate.
+  insights.push(...rentalNetIncomeInsights(listPropertiesWithSummary()));
 
   const months = (
     db

@@ -16,6 +16,7 @@ const BADGE_COLOR: Record<GuideStatus, { label: string; color: string }> = {
   pdf: { label: "PDF TUNED", color: PALETTE.sage },
   beta: { label: "PDF BETA · OFX SAFER", color: PALETTE.mustard },
   ofx: { label: "OFX / QFX", color: PALETTE.dustyblue },
+  csv: { label: "BANK CSV", color: PALETTE.dustyblue },
 };
 
 export function BankGuides() {

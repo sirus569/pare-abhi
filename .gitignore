@@ -80,3 +80,5 @@ spike/
 internal/
 SETUP.md
 docs/encryption-design.md
+
+__pycache__/

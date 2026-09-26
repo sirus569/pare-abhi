@@ -11,7 +11,9 @@ export interface ParsedCsv {
 }
 
 // Split one CSV line into fields, honouring "quoted, ""escaped"" commas".
-function parseCsvLine(line: string): string[] {
+// Exported for the bank-CSV importer (lib/import/bank-csv), whose files can have
+// preamble rows or no header at all, so it can't use parseCsv().
+export function parseCsvLine(line: string): string[] {
   const result: string[] = [];
   let current = "";
   let inQuotes = false;

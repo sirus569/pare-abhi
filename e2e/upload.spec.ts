@@ -57,3 +57,45 @@ test("re-uploading the same file dedups on FITID instead of doubling data", asyn
   await expect(page.getByText("0 inserted")).toBeVisible();
   await expect(page.getByText("13 duplicates skipped")).toBeVisible();
 });
+
+test("a Bank of America CSV is auto-detected, imports, and dedups", async ({ page }) => {
+  await page.goto("/upload");
+  const input = page.locator('input[type="file"]');
+  // BoA names every download stmt.csv — the fixture keeps that real-world name.
+  const boa = path.join(FIXTURES, "boa", "stmt.csv");
+
+  await input.setInputFiles(boa);
+  await expect(page.getByText("looks like a Bank of America export")).toBeVisible();
+  await expect(page.getByText("8 transactions ·")).toBeVisible(); // live preview
+  await page.getByRole("button", { name: "Import 8 transactions" }).click();
+  await expect(page.getByText("8 transactions parsed")).toBeVisible();
+  await expect(page.getByText("8 inserted")).toBeVisible();
+
+  await input.setInputFiles(boa);
+  await page.getByRole("button", { name: "Import 8 transactions" }).click();
+  await expect(page.getByText("8 duplicates skipped")).toBeVisible();
+
+  await page.goto("/transactions");
+  await page.getByPlaceholder("Search descriptions...").fill("CORNER CAFE");
+  const row = page.getByRole("row", { name: /CORNER CAFE/ }).first();
+  await expect(row).toBeVisible();
+  await expect(row).toContainText("boa_chequing");
+});
+
+test("an unknown bank's CSV imports through Other institution", async ({ page }) => {
+  await page.goto("/upload");
+  await page.locator('input[type="file"]').setInputFiles(path.join(FIXTURES, "other-bank.csv"));
+
+  // Not a known profile → Other; the mapping is pre-filled, a name is required.
+  await expect(page.getByText("Give the account a name.")).toBeVisible();
+  await page.getByPlaceholder("e.g. Everyday Chequing").fill("Everyday");
+  await expect(page.getByText("3 transactions ·")).toBeVisible();
+  await page.getByRole("button", { name: "Import 3 transactions" }).click();
+  await expect(page.getByText("3 inserted")).toBeVisible();
+
+  await page.goto("/transactions");
+  await page.getByPlaceholder("Search descriptions...").fill("GROCERY MART");
+  await expect(page.getByRole("row", { name: /GROCERY MART/ }).first()).toContainText(
+    "csv_everyday_chequing"
+  );
+});

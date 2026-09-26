@@ -21,7 +21,7 @@
 // safer first import. Keep this in sync with lib/parser/_SCAFFOLD_BANKS — a
 // bank whose parser graduates from scaffold to tuned should move to "pdf".
 
-export type GuideStatus = "pdf" | "beta" | "ofx";
+export type GuideStatus = "pdf" | "beta" | "ofx" | "csv";
 export type Region = "CA" | "US" | "any";
 
 export const REGION_LABEL: Record<Region, string> = {
@@ -209,25 +209,24 @@ export const BANK_GUIDES: BankGuide[] = [
     ],
     formats: "OFX/QFX (recommended). PDF statements exist but Pare can't parse them.",
     note:
-      "Chase also offers CSV, but Pare's upload drop zone doesn't accept CSV — its dates are too lossy to dedup safely. QFX carries a bank-assigned transaction id, which is what makes re-importing an overlapping range harmless.",
+      "Chase's CSV also imports (drop it and choose “Other institution”), but prefer QFX: it carries a bank-assigned transaction id, which makes re-importing an overlapping range harmless without relying on the row contents.",
     login: "https://www.chase.com/",
   },
   {
     slug: "bank-of-america",
     region: "US",
     bank: "Bank of America",
-    status: "ofx",
+    status: "csv",
     intro:
-      "Bank of America exports Quicken-format files from the account activity view. Use that rather than the PDF statement — Pare has no BofA PDF parser.",
+      "Bank of America no longer offers a Quicken (QFX) export, only a CSV from the account activity view. Pare has a parser built for exactly that BofA CSV layout.",
     steps: [
-      "Sign in at bankofamerica.com and open the account.",
-      "Statements & Documents holds the PDFs; for Pare you want the export instead.",
-      "From account activity choose Download, then the Quicken (.qfx) format.",
-      "Drop the .qfx into Pare.",
+      "Sign in at bankofamerica.com and open the checking or savings account.",
+      "In account activity choose Download, pick the date range, and the spreadsheet / CSV format (labelled “Microsoft Excel”).",
+      "Drop the .csv into Pare and say whether it's checking or savings — the file doesn't record which.",
     ],
-    formats: "OFX/QFX (recommended). PDF statements exist but Pare can't parse them.",
+    formats: "CSV (Bank of America layout only). PDF statements exist but Pare can't parse them.",
     note:
-      "BofA limits how far back the export reaches on some accounts. If you want more history than it offers, pull several shorter ranges — re-importing overlapping files is safe, because dedup keys on the bank's own transaction id.",
+      "Always give the same answer (checking or savings) for the same account — that choice is what keeps its history in one place. Re-importing overlapping date ranges is safe: duplicates are skipped.",
     login: "https://www.bankofamerica.com/",
   },
   {
@@ -263,7 +262,7 @@ export const BANK_GUIDES: BankGuide[] = [
     ],
     formats: "OFX/QFX where offered. PDF statements exist but Pare can't parse them.",
     note:
-      "Citi's export formats differ between card and deposit accounts, and CSV is sometimes the only option — which Pare's drop zone doesn't accept. If you can't get OFX/QFX from Citi, the honest answer is that Pare isn't a good fit for that account yet.",
+      "Citi's export formats differ between card and deposit accounts, and CSV is sometimes the only option. That still works: drop the CSV and choose “Other institution”, then check the column mapping in the preview. OFX/QFX is the safer choice when offered.",
     login: "https://www.citi.com/",
   },
   {
@@ -281,7 +280,7 @@ export const BANK_GUIDES: BankGuide[] = [
     ],
     formats: "OFX/QFX where offered. PDF statements exist but Pare can't parse them.",
     note:
-      "Some Capital One products only export CSV, which Pare's drop zone doesn't accept. Check the format list before planning around it.",
+      "Some Capital One products only export CSV. That imports too — drop it and choose “Other institution”, then check the column mapping and signs in the preview.",
     login: "https://www.capitalone.com/",
   },
   {
@@ -389,7 +388,7 @@ export const BANK_GUIDES: BankGuide[] = [
     ],
     formats: "OFX/QFX where offered. PDF statements exist but Pare can't parse them.",
     note:
-      "Legacy BB&T and SunTrust accounts still behave differently in places. If the export only offers CSV, Pare's drop zone won't take it.",
+      "Legacy BB&T and SunTrust accounts still behave differently in places. If the export only offers CSV, drop it and choose “Other institution” — the preview shows the mapping before anything is imported.",
     login: "https://www.truist.com/",
   },
   {
@@ -420,9 +419,9 @@ export const BANK_GUIDES: BankGuide[] = [
     steps: [
       "Look for “Export”, “Download transactions”, or “Download for Quicken/Money” in the account activity view.",
       "Pick OFX / QFX (sometimes labelled Quicken or Money) — it's a universal format, and Pare's import is dedup-safe: re-importing an overlapping file never doubles anything.",
-      "CSV isn't accepted from the upload drop zone (its dates are too lossy to dedup safely) — OFX/QFX is the reliable path.",
+      "No OFX/QFX? Download CSV instead, drop it, and choose “Other institution”: map the date / description / amount columns and check the live preview before importing.",
     ],
-    formats: "OFX / QFX.",
+    formats: "OFX / QFX (best), or CSV via “Other institution”.",
     note:
       "OFX carries a bank-assigned transaction id, which is what makes re-imports safe: Pare keys dedup on that id, so overlapping exports merge instead of duplicating.",
   },
@@ -432,6 +431,7 @@ export const BADGE: Record<GuideStatus, { label: string; short: string }> = {
   pdf: { label: "PDF TUNED", short: "Tuned" },
   beta: { label: "PDF BETA · OFX SAFER", short: "Beta" },
   ofx: { label: "OFX / QFX", short: "Universal" },
+  csv: { label: "BANK CSV", short: "CSV" },
 };
 
 export function getBankGuide(slug: string): BankGuide | undefined {
