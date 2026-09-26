@@ -9,6 +9,7 @@ import {
 } from "./user-rules";
 import { isDepositKind, DEPOSIT_KINDS_SQL } from "./account-kinds";
 import { deriveKeyword } from "./derive-keyword";
+import { applyTypeRules, seedTypeRules } from "./transaction-types";
 
 export interface CategoryRule {
   id: number;
@@ -40,6 +41,9 @@ const STARTER_RULES: [string, string[]][] = [
 ];
 
 export function seedCategoryRules() {
+  // Type rules restore from their own wipe-survival file on a fresh DB too.
+  seedTypeRules();
+
   const db = getDb();
   const existing = db
     .prepare("SELECT COUNT(*) as count FROM category_rules")
@@ -468,9 +472,14 @@ export function recategorizeMatching(keyword: string, category: string): number 
  * clobbered. (Keyed off isDepositKind so a savings/investment source — new via
  * SimpleFIN/OFX — gets the same contract instead of the card catch-all.)
  *
+ * Type rules run FIRST (applyTypeRules): a row's type decides which category
+ * rules may apply to it, so a Zelle payment re-typed transfer → spend becomes
+ * eligible for ordinary merchant rules in the same pass.
+ *
  * Returns the number of transactions whose category changed.
  */
 export function recategorizeAll(): number {
+  applyTypeRules();
   const db = getDb();
   const rules = listRules();
 

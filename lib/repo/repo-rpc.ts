@@ -117,6 +117,15 @@ export const REPO_CATALOGUE: RepoCatalogue = {
     dismissSuggestion: "write",
     bulkOverride: "write",
   },
+  transactionTypes: {
+    listRules: "read",
+    addRule: "write",
+    deleteRule: "write",
+    preview: "read",
+    get: "read",
+    set: "write",
+    reset: "write",
+  },
   splits: { list: "read", listAll: "read", set: "write", clear: "write" },
   tags: {
     list: "read",

@@ -60,3 +60,29 @@ losing-rental insight). Remaining gaps:
   "project balance from the amortization schedule" would keep the trend honest.
 - **WIPE on hosted.** `/api/data` WIPE (which clears property records) is
   self-host only; hosted has no wipe path yet (shared with all other data).
+
+## 4. Bank-account spending never reaches the spend charts
+
+**Gap.** Overview, By Category, goals, insights, top merchants and the heatmap
+count only card + cash accounts (`SPEND_WHERE` in `lib/db/account-kinds.ts`).
+Debit purchases and Zelle payments from a chequing/savings account — the main
+way many US users spend — are invisible there, even when typed as spend (they
+still count in Cashflow / Income net / Forecast).
+
+**Sketch.** A per-account "include this account's spending in spend charts"
+setting in the profile MANAGE dialog (`account_meta`), on for accounts like
+BoA checking, off for CIBC chequing so existing numbers don't move. Card-bill
+payments are their own type (`payment`), so they don't double count; the one
+real risk is a purchase recorded both as a bank debit and as manual cash.
+
+## 5. Transaction-type follow-ups
+
+- **No stored direction.** Amounts are magnitudes; a `transfer` row doesn't
+  record whether money went in or out, so type rules rely on the bank writing
+  the direction ("Zelle payment to" / "from"). Banks that print the same text
+  both ways (e.g. "INTERNET TRANSFER 000123") can only be fixed per row. A
+  `direction` column set at import (every importer knows the sign) would let a
+  rule be scoped to money out.
+- **Type rules aren't in the JSON export / rules import**, and there are no MCP
+  tools to read or set types yet.
+

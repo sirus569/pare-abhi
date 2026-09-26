@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatCents } from "@/lib/format";
 import { isDepositKind } from "@/lib/db/account-kinds";
+import { TypeEditor } from "@/components/transactions/type-editor";
 
 interface Transaction {
   id: number;
@@ -48,6 +49,9 @@ interface Transaction {
   amount: number;
   effective_category: string;
   flow: string;
+  // Editable types: the imported type once changed (else null); 1 = set by hand.
+  original_flow: string | null;
+  flow_manual: number;
   account_kind: string;
   has_override: number;
   has_splits: number;
@@ -82,11 +86,17 @@ function FlowAmount({ tx, className }: { tx: Transaction; className: string }) {
   );
 }
 
-function FlowLabel({ flow }: { flow: string }) {
-  const label = FLOW_DISPLAY[flow]?.label;
+// Spend rows stay unlabelled unless their type was set by hand (✱), so an
+// edited row is always visibly marked.
+function FlowLabel({ flow, manual }: { flow: string; manual?: boolean }) {
+  const label = FLOW_DISPLAY[flow]?.label ?? (manual ? flow.toUpperCase() : undefined);
   return label ? (
-    <span className="font-mono text-[10px] tracking-widest text-muted-foreground shrink-0">
+    <span
+      className="font-mono text-[10px] tracking-widest text-muted-foreground shrink-0"
+      title={manual ? "Type set by hand" : undefined}
+    >
       {label}
+      {manual ? " ✱" : ""}
     </span>
   ) : null;
 }
@@ -206,6 +216,8 @@ export default function TransactionsPage() {
     const res = await fetch(`/api/transactions?${params}`);
     const data = await res.json();
     setTransactions(data.rows);
+    // Keep an open dialog's row in sync (a type change re-runs category rules).
+    setSelected((s) => (s ? (data.rows as Transaction[]).find((r) => r.id === s.id) ?? s : s));
     setTotal(data.total);
     setCategories(data.categories);
     setSources(data.sources ?? []);
@@ -1008,7 +1020,7 @@ export default function TransactionsPage() {
                       </span>
                     )}
                     <span className="flex items-center gap-2 shrink-0">
-                      <FlowLabel flow={tx.flow} />
+                      <FlowLabel flow={tx.flow} manual={tx.flow_manual === 1} />
                       <span className="font-mono text-[10px] text-muted-foreground uppercase">
                         {tx.txn_date} · {sourceDisplay(tx.source)}
                       </span>
@@ -1103,7 +1115,7 @@ export default function TransactionsPage() {
                         </span>
                       )}
                       <span className="ml-2">
-                        <FlowLabel flow={tx.flow} />
+                        <FlowLabel flow={tx.flow} manual={tx.flow_manual === 1} />
                       </span>
                     </TableCell>
                     <TableCell className="font-mono text-xs uppercase">
@@ -1246,7 +1258,7 @@ export default function TransactionsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-mono tracking-widest uppercase">
-              RECATEGORIZE
+              EDIT TRANSACTION
             </DialogTitle>
           </DialogHeader>
           {selected && (
@@ -1289,6 +1301,15 @@ export default function TransactionsPage() {
                   ) : null}
                 </div>
               </div>
+
+              <TypeEditor
+                key={selected.id}
+                tx={selected}
+                onChanged={(next) => {
+                  setSelected((s) => (s ? { ...s, ...next } : s));
+                  fetchTransactions();
+                }}
+              />
 
               {selected.has_splits ? (
                 <div className="space-y-3">

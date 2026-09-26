@@ -6,6 +6,7 @@ import type {
   TransactionRepo,
   StatementRepo,
   CategoryRepo,
+  TransactionTypeRepo,
   SplitsRepo,
   TagsRepo,
   GoalRepo,
@@ -127,6 +128,16 @@ import {
   addValueEntry,
   deleteValueEntry,
 } from "../db/properties";
+import {
+  listTypeRules,
+  addTypeRule,
+  deleteTypeRule,
+  previewTypeRule,
+  applyTypeRules,
+  typeOf,
+  setTransactionType,
+  resetTransactionType,
+} from "../db/transaction-types";
 
 // SqliteRepo implements the async Repo contract by delegating to the existing,
 // regression-tested lib/db/* functions. better-sqlite3 is synchronous, so each
@@ -239,6 +250,40 @@ export class SqliteRepo implements Repo {
     ruleSuggestions: () => this.read(() => ruleSuggestions()),
     dismissSuggestion: (keyword, category) => this.write(() => dismissSuggestion(keyword, category)),
     bulkOverride: (ids, category) => this.write(() => bulkAssignCategory(ids, category)),
+  };
+
+  // Every mutation: derive types, then re-run category rules over the result
+  // (recategorizeAll re-applies type rules first — idempotent here).
+  transactionTypes: TransactionTypeRepo = {
+    listRules: () => this.read(() => listTypeRules()),
+    addRule: (keyword, flow) =>
+      this.write(() => {
+        addTypeRule(keyword, flow);
+        const typed = applyTypeRules();
+        recategorizeAll();
+        return { typed };
+      }),
+    deleteRule: (id) =>
+      this.write(() => {
+        deleteTypeRule(id);
+        const typed = applyTypeRules();
+        recategorizeAll();
+        return { typed };
+      }),
+    preview: (keyword) => this.read(() => previewTypeRule(keyword)),
+    get: (transactionId) => this.read(() => typeOf(transactionId)),
+    set: (transactionId, flow) =>
+      this.write(() => {
+        const ok = setTransactionType(transactionId, flow);
+        if (ok) recategorizeAll();
+        return ok;
+      }),
+    reset: (transactionId) =>
+      this.write(() => {
+        const ok = resetTransactionType(transactionId);
+        if (ok) recategorizeAll();
+        return ok;
+      }),
   };
 
   splits: SplitsRepo = {

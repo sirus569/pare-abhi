@@ -22,16 +22,16 @@ export interface UserRule {
   keyword: string;
 }
 
-function loadUserRulesStrict(): UserRule[] {
-  if (!fs.existsSync(FILE)) return [];
-  const parsed = JSON.parse(fs.readFileSync(FILE, "utf-8"));
+function loadStrict<T>(file: string): T[] {
+  if (!fs.existsSync(file)) return [];
+  const parsed = JSON.parse(fs.readFileSync(file, "utf-8"));
   if (!Array.isArray(parsed)) throw new Error("expected a JSON array");
-  return parsed as UserRule[];
+  return parsed as T[];
 }
 
 export function loadUserRules(): UserRule[] {
   try {
-    return loadUserRulesStrict();
+    return loadStrict<UserRule>(FILE);
   } catch {
     return [];
   }
@@ -39,14 +39,14 @@ export function loadUserRules(): UserRule[] {
 
 // Write-path load: a corrupt file must NOT read as "no rules" — the next write
 // would replace every persisted rule with a single one. Set it aside instead.
-function loadUserRulesForWrite(): UserRule[] {
+function loadForWrite<T>(file: string): T[] {
   try {
-    return loadUserRulesStrict();
+    return loadStrict<T>(file);
   } catch (err) {
-    const bad = FILE + ".bad";
-    fs.renameSync(FILE, bad);
+    const bad = file + ".bad";
+    fs.renameSync(file, bad);
     console.error(
-      `user-rules.json is unreadable (${err instanceof Error ? err.message : err}); ` +
+      `${path.basename(file)} is unreadable (${err instanceof Error ? err.message : err}); ` +
         `moved it to ${bad} — restore it by hand to recover the rules`
     );
     return [];
@@ -68,10 +68,10 @@ export function loadSeedRules(): UserRule[] | null {
   }
 }
 
-function writeUserRules(rules: UserRule[]): void {
-  const dir = path.dirname(FILE);
+function writeRules<T>(file: string, rules: T[]): void {
+  const dir = path.dirname(file);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(rules, null, 2));
+  fs.writeFileSync(file, JSON.stringify(rules, null, 2));
 }
 
 // The JSON file is a SELF-HOST redundancy layer (rules survive a DB wipe); the
@@ -96,7 +96,7 @@ function bestEffort(op: string, fn: () => void): void {
     // the DB write already committed, so surface loudly but don't fail the
     // mutation over the redundancy copy.
     console.error(
-      `user-rules.json ${op} failed (rule is saved in the database; the wipe-survival copy is stale): ` +
+      `rules file ${op} failed (rule is saved in the database; the wipe-survival copy is stale): ` +
         (err instanceof Error ? err.message : String(err))
     );
   }
@@ -113,19 +113,59 @@ export function saveUserRules(incoming: UserRule[]): void {
   if (!incoming.length || persistSkipped()) return;
   bestEffort("write", () => {
     const byKeyword = new Map<string, UserRule>();
-    for (const r of loadUserRulesForWrite()) byKeyword.set(r.keyword.toUpperCase(), r);
+    for (const r of loadForWrite<UserRule>(FILE)) byKeyword.set(r.keyword.toUpperCase(), r);
     for (const r of incoming) byKeyword.set(r.keyword.toUpperCase(), r);
-    writeUserRules([...byKeyword.values()]);
+    writeRules(FILE, [...byKeyword.values()]);
   });
 }
 
 export function removeUserRule(keyword: string): void {
   if (persistSkipped()) return;
   bestEffort("delete", () => {
-    const rules = loadUserRulesForWrite();
+    const rules = loadForWrite<UserRule>(FILE);
     const filtered = rules.filter(
       (r) => r.keyword.toUpperCase() !== keyword.toUpperCase()
     );
-    if (filtered.length !== rules.length) writeUserRules(filtered);
+    if (filtered.length !== rules.length) writeRules(FILE, filtered);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Type rules (keyword → transaction type, lib/db/transaction-types.ts) get the
+// same wipe-survival copy in their own file, data/user-type-rules.json. Every
+// type rule is user-defined (there are no built-ins), so the file IS the list.
+// ---------------------------------------------------------------------------
+
+const TYPE_FILE = path.join(DATA_DIR, "user-type-rules.json");
+
+export interface UserTypeRule {
+  keyword: string;
+  flow: string;
+}
+
+export function loadUserTypeRules(): UserTypeRule[] {
+  try {
+    return loadStrict<UserTypeRule>(TYPE_FILE);
+  } catch {
+    return [];
+  }
+}
+
+export function saveUserTypeRule(keyword: string, flow: string): void {
+  if (persistSkipped()) return;
+  bestEffort("write", () => {
+    const rules = loadForWrite<UserTypeRule>(TYPE_FILE).filter(
+      (r) => r.keyword.toUpperCase() !== keyword.toUpperCase()
+    );
+    writeRules(TYPE_FILE, [...rules, { keyword, flow }]);
+  });
+}
+
+export function removeUserTypeRule(keyword: string): void {
+  if (persistSkipped()) return;
+  bestEffort("delete", () => {
+    const rules = loadForWrite<UserTypeRule>(TYPE_FILE);
+    const filtered = rules.filter((r) => r.keyword.toUpperCase() !== keyword.toUpperCase());
+    if (filtered.length !== rules.length) writeRules(TYPE_FILE, filtered);
   });
 }
