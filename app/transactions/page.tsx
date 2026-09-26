@@ -1255,14 +1255,14 @@ export default function TransactionsPage() {
       </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); setSaveError(null); }}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="font-mono tracking-widest uppercase">
               EDIT TRANSACTION
             </DialogTitle>
           </DialogHeader>
           {selected && (
-            <div className="space-y-4 mt-2">
+            <div className="space-y-4 mt-2 min-w-0">
               <div className="border p-3">
                 <p className="text-sm font-medium break-words">{selected.description}</p>
                 <p className="font-mono text-xs text-muted-foreground mt-1">
