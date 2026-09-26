@@ -47,8 +47,14 @@ product, minus the multi-tenant plumbing.
 git clone https://github.com/itsgotpower/pare.git
 cd pare
 npm install
+echo "PARE_AUTH_SECRET=$(openssl rand -hex 32)" >> .env
 npm run dev
 ```
+
+**`PARE_AUTH_SECRET` is required.** It signs your login cookie, and the auth
+gate can't verify a session without it — you'd be sent back to the login screen
+on every page. `.env` is gitignored and stays on your machine. Changing the value
+(and restarting) signs out every device.
 
 Open <http://localhost:3000>. First run prompts you to create a profile (the
 single-user gate). Drop a statement PDF on `/upload` — Amex, CIBC Visa, or CIBC
@@ -71,6 +77,8 @@ python3 lib/parser/parse_statements.py --report <pdf>   # single-statement parse
 npm test                                                # parser regression suite (synthetic fixtures)
 ```
 
+Once it's running, **[docs/FEATURES.md](docs/FEATURES.md)** is the tour of
+everything Pare does (also at [pare.money/features](https://pare.money/features)).
 See [mcp/README.md](mcp/README.md) for wiring the MCP server into Claude,
 [docs/parser-contributions.md](docs/parser-contributions.md) for tuning your
 bank's statement parser against your own PDFs, and

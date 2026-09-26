@@ -127,6 +127,15 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Tailwind 4's preflight dropped the pointer cursor on buttons (it now
+     follows the browser default arrow). Restore it app-wide so every clickable
+     control signals it on hover. Base layer, so a utility like cursor-wait
+     still wins; `summary` covers native <details> disclosures. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
   /* App-shell height. The shell is a flex column (top bar / scrolling main /
      bottom tab bar); `main` scrolls internally, so the shell needs a DEFINITE
      height. Plain `height: 100%` mis-sizes on iOS standalone PWAs with

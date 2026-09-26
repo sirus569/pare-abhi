@@ -15,6 +15,7 @@ const FOOTER_LINKS = [
   { href: "/about", label: "About" },
   { href: "/mcp", label: "MCP for Claude" },
   { href: "/how-it-works", label: "How it works" },
+  { href: "/features", label: "Features" },
   { href: "/switch", label: "Switch" },
   { href: "/guides", label: "Statement guides" },
   { href: "/blog", label: "Blog" },

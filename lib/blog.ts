@@ -65,11 +65,25 @@ export interface Post extends PostMeta {
 
 // lower-case, hyphen-separated, alphanumerics only — used both for heading anchor
 // ids and the TOC links, so the two always agree.
-function slugify(text: string): string {
+export function slugify(text: string): string {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+// Repeated headings (the feature guide has an "Advanced" under every section)
+// get GitHub-style suffixes — advanced, advanced-1, advanced-2 — so every id is
+// unique and matches the anchor GitHub generates for the same markdown. One
+// slugger per document, walked in heading order by both the renderer and the TOC.
+function createSlugger(): (text: string) => string {
+  const seen = new Map<string, number>();
+  return (text) => {
+    const base = slugify(text);
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    return n === 0 ? base : `${base}-${n}`;
+  };
 }
 
 function readingMinutes(markdown: string): number {
@@ -106,11 +120,12 @@ function toMeta(slug: string, data: Record<string, unknown>, markdown: string): 
 // blocks are stripped first so a `##` inside a widget's JSON can't leak into the TOC.
 function extractToc(markdown: string): TocItem[] {
   const items: TocItem[] = [];
+  const slug = createSlugger();
   for (const line of stripWidgetBlocks(markdown).split("\n")) {
     const m = /^(#{2,3})\s+(.+?)\s*$/.exec(line);
     if (m) {
       const text = m[2].trim();
-      items.push({ depth: m[1].length, text, id: slugify(text) });
+      items.push({ depth: m[1].length, text, id: slug(text) });
     }
   }
   return items;
@@ -118,7 +133,7 @@ function extractToc(markdown: string): TocItem[] {
 
 // Content is authored by us (trusted), so rendering to an HTML string and adding
 // anchor ids with a regex is safe and avoids pulling in a heavier renderer.
-function renderMarkdown(markdown: string): string {
+export function renderMarkdown(markdown: string, slug = createSlugger()): string {
   const html = marked.parse(markdown, { async: false, gfm: true }) as string;
   // Wrap GFM tables so they scroll inside their own container — a wide
   // comparison table must never make the page body scroll sideways on a phone.
@@ -130,7 +145,7 @@ function renderMarkdown(markdown: string): string {
   );
   return withTables.replace(/<(h[23])>(.*?)<\/\1>/g, (_full, tag: string, inner: string) => {
     const plain = inner.replace(/<[^>]+>/g, "");
-    const id = slugify(plain);
+    const id = slug(plain);
     // Real anchor link (server-rendered, so it's crawlable and shareable). It's
     // visually hidden until the heading is hovered/focused — see `.heading-anchor`
     // in globals.css — to keep the brutalist headings clean.
@@ -159,8 +174,9 @@ function stripWidgetBlocks(markdown: string): string {
 // silently dropping the module.
 export function splitBlocks(markdown: string, slug: string): PostBlock[] {
   const blocks: PostBlock[] = [];
+  const slugger = createSlugger(); // shared across chunks so ids stay unique post-wide
   const pushProse = (raw: string) => {
-    if (raw.trim()) blocks.push({ kind: "prose", html: renderMarkdown(raw) });
+    if (raw.trim()) blocks.push({ kind: "prose", html: renderMarkdown(raw, slugger) });
   };
   let lastIndex = 0;
   WIDGET_BLOCK.lastIndex = 0;
@@ -222,4 +238,12 @@ export function getRelatedPosts(slug: string, limit = 2): PostMeta[] {
     .sort((a, b) => b.overlap - a.overlap || b.post.publishedAt.localeCompare(a.post.publishedAt))
     .slice(0, limit)
     .map((x) => x.post);
+}
+
+// A standalone markdown document (the /features guide), rendered with the same
+// pipeline as posts: anchored headings, scrollable tables, H2/H3 TOC. The leading
+// `# Title` line is dropped — the page renders its own H1, same as a post.
+export function renderDocument(markdown: string): { html: string; toc: TocItem[] } {
+  const body = markdown.replace(/^\s*# .*\r?\n/, "");
+  return { html: renderMarkdown(body), toc: extractToc(body) };
 }

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { splitBlocks, getPost, getAllSlugs, getRelatedPosts, type PostBlock } from "./blog";
+import { splitBlocks, getPost, getAllSlugs, getRelatedPosts, renderDocument, type PostBlock } from "./blog";
+import { FEATURES_MARKDOWN } from "./features-content.generated";
 import { buildStructuredData } from "./blog-jsonld";
 
 const widget = (b: PostBlock) => (b.kind === "widget" ? b : null);
@@ -103,4 +104,24 @@ test("buildStructuredData: always emits BlogPosting + BreadcrumbList", () => {
     // HowTo only when the post opts in AND has a Stepper.
     if (types.includes("HowTo")) assert.equal(post.howto, true, `${slug} emitted HowTo without opt-in`);
   }
+});
+
+test("renderDocument: repeated headings get unique GitHub-style ids, TOC agrees", () => {
+  const md = "# Title\n\n## One\n\n### Advanced\n\n## Two\n\n### Advanced\n";
+  const { html, toc } = renderDocument(md);
+  assert.doesNotMatch(html, /<h1/); // the page renders its own H1
+  assert.match(html, /<h3 id="advanced">/);
+  assert.match(html, /<h3 id="advanced-1">/);
+  assert.deepEqual(
+    toc.map((t) => t.id),
+    ["one", "advanced", "two", "advanced-1"]
+  );
+});
+
+test("feature guide: every in-page #anchor link resolves to a heading", () => {
+  const { html, toc } = renderDocument(FEATURES_MARKDOWN);
+  const ids = new Set(toc.map((t) => t.id));
+  const links = [...html.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(links.length > 10);
+  for (const id of links) assert.ok(ids.has(id), `dangling anchor #${id}`);
 });

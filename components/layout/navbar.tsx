@@ -20,6 +20,7 @@ import {
   Moon,
   User,
   MessageSquarePlus,
+  BookOpen,
 } from "lucide-react";
 import { PALETTE } from "@/lib/colors";
 import { Wordmark } from "@/components/layout/wordmark";
@@ -126,6 +127,7 @@ export function Sidebar() {
     pathname.startsWith("/blog/") ||
     pathname === "/ai-info" ||
     pathname === "/guides" ||
+    pathname === "/features" ||
     pathname.startsWith("/guides/")
   )
     return null;
@@ -168,6 +170,17 @@ export function Sidebar() {
             >
               {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </button>
+            <Link
+              href="/guide"
+              aria-label="Guide"
+              className={`flex items-center justify-center w-11 h-12 transition-colors ${
+                isActive("/guide")
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <BookOpen className="size-4" />
+            </Link>
             <Link
               href="/profile"
               aria-label="Profile"
@@ -285,6 +298,22 @@ export function Sidebar() {
         </nav>
 
         <div className="border-t border-border py-2">
+          <Link
+            href="/guide"
+            title={collapsed ? "GUIDE" : undefined}
+            style={isActive("/guide") ? { borderLeftColor: PALETTE.dustyblue } : undefined}
+            className={`flex items-center gap-3 px-4 py-2.5 font-mono text-xs tracking-widest transition-colors border-l-2 ${
+              isActive("/guide")
+                ? "text-foreground bg-accent"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/50 border-transparent"
+            }`}
+          >
+            <BookOpen
+              className="size-4 shrink-0"
+              style={isActive("/guide") ? { color: PALETTE.dustyblue } : undefined}
+            />
+            {!collapsed && <span>GUIDE</span>}
+          </Link>
           <Link
             href="/profile"
             title={collapsed ? "PROFILE" : undefined}

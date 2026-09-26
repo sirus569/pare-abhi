@@ -30,6 +30,7 @@ const MARKETING_PATHS = [
   "/blog",
   "/ai-info",
   "/guides",
+  "/features",
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
