@@ -60,6 +60,8 @@ losing-rental insight). Remaining gaps:
   "project balance from the amortization schedule" would keep the trend honest.
 - **WIPE on hosted.** `/api/data` WIPE (which clears property records) is
   self-host only; hosted has no wipe path yet (shared with all other data).
+- **Unable to link transactions to properties.** Transactions are not linked to
+  properties. Can't link a mortgage payment to a property.
 
 ## 4. Bank-account spending never reaches the spend charts
 
