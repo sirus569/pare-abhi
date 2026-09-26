@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,11 +55,11 @@ interface ManualEntry {
 interface NetWorthAccount {
   name: string;
   label?: string; // nickname from /profile account management — display only
-  type: "statement" | "manual" | "property";
+  type: "statement" | "manual" | "property" | "investment";
   kind: "asset" | "liability";
   current: number;
   asOf: string;
-  closed?: boolean; // marked closed on /profile — no longer carries forward
+  closed?: boolean; // marked closed on /profile or /investments — no longer carries forward
 }
 
 interface NetWorthPoint {
@@ -176,7 +177,8 @@ export function NetWorthTab({
       <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
         <p className="text-xs text-muted-foreground max-w-xl min-w-[220px] flex-1">
           Statement-cadence net worth — closing balances from each statement
-          (chequing positive, card balances as debt) plus manual entries.
+          (chequing positive, card balances as debt) plus investments,
+          properties, and manual entries.
           Balances carry forward between statements; point-in-time by design.
         </p>
         <Dialog
@@ -403,7 +405,7 @@ export function NetWorthTab({
                         )}
                       </p>
                       <p className="text-muted-foreground">
-                        {a.type === "manual" ? "manual · " : a.type === "property" ? "property · " : ""}as of {a.asOf}
+                        {a.type === "statement" ? "" : `${a.type} · `}as of {a.asOf}
                       </p>
                     </div>
                   </div>
@@ -485,8 +487,12 @@ export function NetWorthTab({
             )}
             {netWorth.entries.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                None yet — add investments, a vehicle, or other balances that
-                don&apos;t come from statements.
+                None yet — add a vehicle or other balances that don&apos;t come
+                from statements. Retirement and brokerage accounts go on the{" "}
+                <Link href="/investments" className="underline underline-offset-2">
+                  Investments
+                </Link>{" "}
+                page.
               </p>
             ) : (
               <div className="space-y-2">

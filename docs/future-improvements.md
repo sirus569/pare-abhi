@@ -95,3 +95,24 @@ value in the closed trigger (`all`, `boa_chequing`) instead of the option label
 label it has been given, and the labels live in the unmounted popup. Fix: pass
 each `<Select>` an `items` value→label map, as the TYPE filter already does.
 Low priority — cosmetic only.
+
+## 7. Investments are balance-only (net worth)
+
+`/investments` (migration 016) tracks a dated balance per account and feeds Net
+Worth only. Known gaps:
+
+- **Brokerage/retirement accounts synced via SimpleFIN/OFX leak into income.**
+  Every income query (`income.ts`, `cashflow.ts`, `forecast.ts`,
+  `cashflowForecast.ts`) is `WHERE flow = 'income'` with no `account_kind`
+  filter, so dividends/contributions on an `investment`-kind account count as
+  income. Fix: one shared `INCOME_WHERE` (next to `SPEND_WHERE`) that excludes
+  `investment`. Until then, track these accounts on `/investments` by hand.
+- **Recurring contributions aren't in the cash-flow forecast.** An automatic
+  chequing→IRA/brokerage transfer stays `Banking`-categorised, so it's in
+  neither the fixed nor variable bucket and the projected balance drifts high
+  (same for automatic savings sweeps).
+- **No contribution vs growth split** — the history is balances only.
+- **No MCP tools** for investments.
+- **Synced balances don't feed the history.** An `investment`-kind statement
+  anchor still shows as its own statement line in net worth, separate from
+  any `/investments` account.

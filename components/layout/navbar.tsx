@@ -12,6 +12,7 @@ import {
   Repeat,
   Store,
   Building2,
+  TrendingUp,
   Brain,
   PanelLeftClose,
   PanelLeft,
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
   { href: "/categories", label: "CATEGORIES", icon: Tag },
   { href: "/goals", label: "GOALS", icon: Target },
   { href: "/properties", label: "PROPERTIES", icon: Building2 },
+  { href: "/investments", label: "INVESTMENTS", icon: TrendingUp },
   { href: "/connect", label: "CLAUDE", icon: Brain },
 ];
 

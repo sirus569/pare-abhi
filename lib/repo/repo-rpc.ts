@@ -190,6 +190,16 @@ export const REPO_CATALOGUE: RepoCatalogue = {
     addValueEntry: "write",
     deleteValueEntry: "write",
   },
+  investments: {
+    list: "read",
+    get: "read",
+    create: "write",
+    update: "write",
+    setClosed: "write",
+    delete: "write",
+    setBalance: "write",
+    deleteBalance: "write",
+  },
 };
 
 // True for methods DoRepoClient.batch() must buffer (see MethodKind above).

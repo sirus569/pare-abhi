@@ -146,6 +146,10 @@ export async function DELETE(request: NextRequest) {
     const propertyExpenses = db.prepare("DELETE FROM property_expenses").run().changes;
     const propertyMortgages = db.prepare("DELETE FROM property_mortgages").run().changes;
     const properties = db.prepare("DELETE FROM properties").run().changes;
+    // Investment accounts follow properties (migration 016) — wiped, history
+    // (references investment_accounts(id)) first.
+    const investmentBalances = db.prepare("DELETE FROM investment_balance_history").run().changes;
+    const investmentAccounts = db.prepare("DELETE FROM investment_accounts").run().changes;
     return {
       transactions: txns,
       statements: stmts,
@@ -157,6 +161,8 @@ export async function DELETE(request: NextRequest) {
       propertyMortgages,
       propertyExpenses,
       propertyValueHistory,
+      investmentAccounts,
+      investmentBalances,
     };
   });
   const deleted = wipe();
