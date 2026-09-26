@@ -38,6 +38,7 @@ const PUBLIC_PATHS = [
   "/blog",
   "/ai-info",
   "/guides",
+  "/features",
 ];
 
 // Hosted mode is selected at build/deploy time (PARE_DEPLOY_TARGET=hosted).
@@ -48,7 +49,7 @@ const HOSTED = process.env.PARE_DEPLOY_TARGET === "hosted";
 // and every other app/API route redirect to "/", so the un-provisioned data plane
 // (D1/R2/Queues) is never reached. Flip the var off + redeploy to restore the app.
 const WAITLIST_ONLY = process.env.PARE_WAITLIST_ONLY === "1";
-const WAITLIST_PUBLIC = ["/", "/demo", "/api/waitlist", "/about", "/mcp", "/privacy", "/terms", "/security", "/switch", "/switch-from-monarch", "/switching", "/how-it-works", "/pricing", "/blog", "/ai-info", "/guides"];
+const WAITLIST_PUBLIC = ["/", "/demo", "/api/waitlist", "/about", "/mcp", "/privacy", "/terms", "/security", "/switch", "/switch-from-monarch", "/switching", "/how-it-works", "/pricing", "/blog", "/ai-info", "/guides", "/features"];
 
 // The signing secret, read from the environment — the only source the Edge
 // runtime can reach (no fs here). The Node API routes resolve the SAME value via

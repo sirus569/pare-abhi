@@ -513,6 +513,12 @@ export default function MarketingHome() {
               How it works
             </Link>
             <Link
+              href="/features"
+              className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Features
+            </Link>
+            <Link
               href="/switch"
               className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
             >
