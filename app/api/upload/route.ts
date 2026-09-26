@@ -7,6 +7,8 @@ import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
 import { insertParsedStatement } from "@/lib/repo/insert-parsed";
 import { insertOfxImport } from "@/lib/repo/insert-ofx";
 import { parseOfx, looksLikeOfx } from "@/lib/import/ofx";
+import { parseBankCsv } from "@/lib/import/bank-csv";
+import { parseCsvImportOptions } from "@/lib/import/bank-csv/options";
 import { isHostedMode, resolveUser } from "@/lib/auth/resolve";
 import type { Repo } from "@/lib/repo";
 
@@ -96,9 +98,17 @@ async function handleSelfHostUpload(request: NextRequest) {
       return await handleOfxImport(repo, file);
     }
 
+    // Bank-export CSV (lib/import/bank-csv): a known institution's strict
+    // profile, or "Other institution" with the user's column mapping. The panel
+    // on /upload sends the options it previewed; we re-parse authoritatively.
+    // (App-migration CSVs — Monarch/Mint/YNAB — go through /switch instead.)
+    if (/\.csv$/i.test(file.name)) {
+      return await handleBankCsvImport(repo, file, formData.get("csv_options"));
+    }
+
     if (!file.name.endsWith(".pdf")) {
       return Response.json(
-        { error: "Only PDF, OFX, or QFX files accepted" },
+        { error: "Only PDF, OFX, QFX, or CSV files accepted" },
         { status: 400 }
       );
     }
@@ -294,4 +304,42 @@ async function handleOfxImport(repo: Repo, file: File) {
 
   const { inserted, skipped } = await insertOfxImport(repo, file.name, parsed);
   return Response.json({ inserted, skipped, total, filename: file.name });
+}
+
+// Bank-CSV import → the OFX insert path (one statement row, recategorizeAll).
+// Bank downloads reuse generic names ("stmt.csv", "accountactivity.csv") and
+// statements.filename is UNIQUE (upsert), so the statement row is keyed on
+// source + period instead of the upload name: re-uploading the same export is
+// idempotent, while each new download adds a net-worth observation rather than
+// overwriting the last one (or, worse, another account's).
+async function handleBankCsvImport(repo: Repo, file: File, rawOptions: FormDataEntryValue | null) {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return Response.json({ error: "File too large (max 25 MB)." }, { status: 400 });
+  }
+  const options = parseCsvImportOptions(rawOptions);
+  if (!options) {
+    return Response.json(
+      { error: "Choose the institution and account type for this CSV." },
+      { status: 400 }
+    );
+  }
+
+  const result = parseBankCsv(await file.text(), options);
+  if (!result.ok) return Response.json({ error: result.error }, { status: 400 });
+
+  const acct = result.parsed.accounts[0];
+  const { inserted, skipped, total } = await insertOfxImport(
+    repo,
+    `${acct.source} ${acct.period}.csv`,
+    result.parsed
+  );
+  return Response.json({
+    inserted,
+    skipped,
+    total,
+    filename: file.name,
+    ...(result.unreconciled > 0 && {
+      warning: `${result.unreconciled} row${result.unreconciled === 1 ? "" : "s"} didn't match the running balance — check the column mapping, or that the export wasn't edited.`,
+    }),
+  });
 }

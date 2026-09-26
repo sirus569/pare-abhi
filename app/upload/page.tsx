@@ -5,6 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BankGuides } from "@/components/upload/bank-guides";
 import { SimplefinCard } from "@/components/upload/simplefin-card";
 import { PALETTE } from "@/lib/colors";
+import { CsvImportPanel, type CsvPending } from "@/components/upload/csv-import-panel";
+import {
+  detectProfile,
+  suggestMapping,
+  toRows,
+  type CsvImportOptions,
+} from "@/lib/import/bank-csv";
 import { Trash2 } from "lucide-react";
 
 // Live status shown while a statement moves through the pipeline. Self-host
@@ -24,6 +31,7 @@ interface UploadResult {
   total: number;
   filename: string;
   error?: string;
+  warning?: string; // non-fatal parse note (e.g. BoA running-balance mismatch)
 }
 
 // Chrome's install-prompt event (not in lib.dom — spec is still WICG).
@@ -72,13 +80,34 @@ export default function UploadPage() {
   const [progress, setProgress] = useState<{ phase: ParsePhase; detail?: string } | null>(null);
   const [results, setResults] = useState<UploadResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // CSVs waiting on the import panel (institution, account type, mapping). A
+  // CSV carries no account identity, so the user confirms it once per file.
+  const [pendingCsv, setPendingCsv] = useState<CsvPending[]>([]);
 
-  const uploadFile = useCallback(async (file: File) => {
+  const uploadFile = useCallback(async (file: File, csvOptions?: CsvImportOptions) => {
     setError(null);
+
+    if (/\.csv$/i.test(file.name) && !csvOptions) {
+      const text = await file.text();
+      const rows = toRows(text);
+      setPendingCsv((prev) => [
+        ...prev,
+        {
+          id: `${file.name}-${Date.now()}-${Math.random()}`,
+          file,
+          text,
+          detected: detectProfile(rows),
+          suggestion: suggestMapping(rows),
+        },
+      ]);
+      return;
+    }
+
     setProgress({ phase: "uploading" });
 
     const formData = new FormData();
     formData.append("file", file);
+    if (csvOptions) formData.append("csv_options", JSON.stringify(csvOptions));
 
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
@@ -281,10 +310,10 @@ export default function UploadPage() {
           ) : (
             <>
               <p className="font-mono text-sm tracking-widest uppercase text-muted-foreground">
-                DROP STATEMENTS OR OFX/QFX HERE
+                DROP STATEMENTS, OFX/QFX, OR CSV HERE
               </p>
               <p className="text-xs text-muted-foreground">
-                PDF credit-card / bank statements, or .ofx / .qfx exports
+                PDF credit-card / bank statements, .ofx / .qfx exports, or a bank .csv export
               </p>
               <label className="mt-2">
                 <span className="inline-flex items-center px-4 py-2 border border-foreground font-mono text-xs tracking-widest uppercase cursor-pointer hover:bg-foreground hover:text-background transition-colors">
@@ -292,7 +321,7 @@ export default function UploadPage() {
                 </span>
                 <input
                   type="file"
-                  accept=".pdf,.ofx,.qfx"
+                  accept=".pdf,.ofx,.qfx,.csv"
                   multiple
                   onChange={handleFileSelect}
                   className="hidden"
@@ -302,6 +331,19 @@ export default function UploadPage() {
           )}
         </CardContent>
       </Card>
+
+      {pendingCsv.length > 0 && (
+        <CsvImportPanel
+          key={pendingCsv[0].id}
+          pending={pendingCsv[0]}
+          onImport={(options) => {
+            const [next, ...rest] = pendingCsv;
+            setPendingCsv(rest);
+            uploadFile(next.file, options);
+          }}
+          onSkip={() => setPendingCsv((prev) => prev.slice(1))}
+        />
+      )}
 
       {error && (
         <Card className="mt-6 border-destructive">
@@ -394,6 +436,11 @@ export default function UploadPage() {
                     )}
                   </div>
                 </div>
+                {r.warning && (
+                  <p className="mt-2 text-xs" style={{ color: PALETTE.mustard }}>
+                    {r.warning}
+                  </p>
+                )}
                 {/* Confirms the privacy promise: the original file is gone once
                     the transactions are extracted (temp file rm'd in self-host;
                     R2 object deleted post-parse in hosted, retention default-off). */}
