@@ -73,6 +73,19 @@ const FLOW_DISPLAY: Record<string, { sign: string; color?: string; muted?: boole
   payment: { sign: "", muted: true, label: "CARD PMT" },
 };
 
+// TYPE filter options. Shares the `flow` state with the SPEND / INCOME /
+// TRANSFERS / ALL tabs (the tabs are shortcuts for the common picks); values
+// are what the list API's `flow` param takes, incl. the comma-joined set.
+const TYPE_FILTER_ITEMS: Record<string, string> = {
+  all: "ALL TYPES",
+  spend: "SPEND",
+  income: "INCOME",
+  "transfer,payment": "TRANSFERS + CARD PMTS",
+  transfer: "TRANSFER",
+  payment: "CARD PMT",
+  fee_interest: "FEE",
+};
+
 function FlowAmount({ tx, className }: { tx: Transaction; className: string }) {
   const d = FLOW_DISPLAY[tx.flow] ?? { sign: "" };
   return (
@@ -671,6 +684,18 @@ export default function TransactionsPage() {
 
   const filterSelects = (
     <>
+      <Select value={flow} onValueChange={(v) => setFlow(v ?? "all")} items={TYPE_FILTER_ITEMS}>
+        <SelectTrigger className="w-full sm:w-[200px] font-mono text-xs" aria-label="Type">
+          <SelectValue placeholder="Type" />
+        </SelectTrigger>
+        <SelectContent>
+          {Object.entries(TYPE_FILTER_ITEMS).map(([value, label]) => (
+            <SelectItem key={value} value={value} className="font-mono text-xs">
+              {label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Select value={category} onValueChange={(v) => setCategory(v ?? "all")}>
         <SelectTrigger className="w-full sm:w-[200px] font-mono text-xs">
           <SelectValue placeholder="Category" />
@@ -1052,8 +1077,8 @@ export default function TransactionsPage() {
                 )}
                 <TableHead className="font-mono text-xs tracking-widest">DATE</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest">DESCRIPTION</TableHead>
-                <TableHead className="font-mono text-xs tracking-widest">CATEGORY</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest">TYPE</TableHead>
+                <TableHead className="font-mono text-xs tracking-widest">CATEGORY</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest">SOURCE</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest text-right">AMOUNT</TableHead>
               </TableRow>
@@ -1095,6 +1120,9 @@ export default function TransactionsPage() {
                     <TableCell className="font-mono text-xs">{tx.txn_date}</TableCell>
                     <TableCell className="text-sm max-w-xs truncate">{tx.description}</TableCell>
                     <TableCell>
+                      <FlowLabel flow={tx.flow} manual={tx.flow_manual === 1} className="text-xs" />
+                    </TableCell>
+                    <TableCell>
                       {tx.has_splits ? (
                         <span className="inline-flex items-center px-2 py-0.5 border text-xs font-mono text-muted-foreground">
                           SPLIT
@@ -1116,9 +1144,6 @@ export default function TransactionsPage() {
                           ) : null}
                         </span>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <FlowLabel flow={tx.flow} manual={tx.flow_manual === 1} className="text-xs" />
                     </TableCell>
                     <TableCell className="font-mono text-xs uppercase">
                       {sourceDisplay(tx.source)}
