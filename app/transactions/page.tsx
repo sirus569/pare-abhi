@@ -66,7 +66,7 @@ interface Transaction {
 // Income is signed + and sage; spend and fees −; transfers and card payments
 // (money moving between your own accounts) stay unsigned and muted.
 const FLOW_DISPLAY: Record<string, { sign: string; color?: string; muted?: boolean; label?: string }> = {
-  spend: { sign: "−" },
+  spend: { sign: "−", label: "SPEND" },
   fee_interest: { sign: "−", label: "FEE" },
   income: { sign: "+", color: PALETTE.sage, label: "INCOME" },
   transfer: { sign: "", muted: true, label: "TRANSFER" },
@@ -86,19 +86,20 @@ function FlowAmount({ tx, className }: { tx: Transaction; className: string }) {
   );
 }
 
-// Spend rows stay unlabelled unless their type was set by hand (✱), so an
-// edited row is always visibly marked.
-function FlowLabel({ flow, manual }: { flow: string; manual?: boolean }) {
-  const label = FLOW_DISPLAY[flow]?.label ?? (manual ? flow.toUpperCase() : undefined);
-  return label ? (
+// The row's type, coloured like its amount (income sage, transfers muted) so
+// the TYPE column and the AMOUNT column read together. ✱ = set by hand.
+function FlowLabel({ flow, manual, className = "text-[10px]" }: { flow: string; manual?: boolean; className?: string }) {
+  const d = FLOW_DISPLAY[flow];
+  return (
     <span
-      className="font-mono text-[10px] tracking-widest text-muted-foreground shrink-0"
+      className={`font-mono tracking-widest shrink-0 ${className} ${d?.color || !d?.muted ? "" : "text-muted-foreground"}`}
+      style={d?.color ? { color: d.color } : undefined}
       title={manual ? "Type set by hand" : undefined}
     >
-      {label}
+      {d?.label ?? flow.toUpperCase()}
       {manual ? " ✱" : ""}
     </span>
-  ) : null;
+  );
 }
 
 // GET /api/tags — a distinct tag with how many transactions carry it.
@@ -966,7 +967,7 @@ export default function TransactionsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Phones: tappable list rows instead of a five-column table */}
+      {/* Phones: tappable list rows instead of a six-column table */}
       <Card className="md:hidden">
         <CardContent className="p-0">
           {loading ? (
@@ -1052,6 +1053,7 @@ export default function TransactionsPage() {
                 <TableHead className="font-mono text-xs tracking-widest">DATE</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest">DESCRIPTION</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest">CATEGORY</TableHead>
+                <TableHead className="font-mono text-xs tracking-widest">TYPE</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest">SOURCE</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest text-right">AMOUNT</TableHead>
               </TableRow>
@@ -1059,13 +1061,13 @@ export default function TransactionsPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={selectMode ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={selectMode ? 7 : 6} className="text-center py-8 text-muted-foreground">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={selectMode ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={selectMode ? 7 : 6} className="text-center py-8 text-muted-foreground">
                     No transactions found.{" "}
                     <Link href="/upload" className="underline hover:text-foreground transition-colors">
                       Upload a statement first.
@@ -1114,9 +1116,9 @@ export default function TransactionsPage() {
                           ) : null}
                         </span>
                       )}
-                      <span className="ml-2">
-                        <FlowLabel flow={tx.flow} manual={tx.flow_manual === 1} />
-                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <FlowLabel flow={tx.flow} manual={tx.flow_manual === 1} className="text-xs" />
                     </TableCell>
                     <TableCell className="font-mono text-xs uppercase">
                       {sourceDisplay(tx.source)}
