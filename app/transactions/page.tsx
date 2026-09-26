@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatCents } from "@/lib/format";
 import { isDepositKind } from "@/lib/db/account-kinds";
+import { TypeEditor } from "@/components/transactions/type-editor";
 
 interface Transaction {
   id: number;
@@ -48,6 +49,9 @@ interface Transaction {
   amount: number;
   effective_category: string;
   flow: string;
+  // Editable types: the imported type once changed (else null); 1 = set by hand.
+  original_flow: string | null;
+  flow_manual: number;
   account_kind: string;
   has_override: number;
   has_splits: number;
@@ -62,11 +66,24 @@ interface Transaction {
 // Income is signed + and sage; spend and fees −; transfers and card payments
 // (money moving between your own accounts) stay unsigned and muted.
 const FLOW_DISPLAY: Record<string, { sign: string; color?: string; muted?: boolean; label?: string }> = {
-  spend: { sign: "−" },
+  spend: { sign: "−", label: "SPEND" },
   fee_interest: { sign: "−", label: "FEE" },
   income: { sign: "+", color: PALETTE.sage, label: "INCOME" },
   transfer: { sign: "", muted: true, label: "TRANSFER" },
   payment: { sign: "", muted: true, label: "CARD PMT" },
+};
+
+// TYPE filter options. Shares the `flow` state with the SPEND / INCOME /
+// TRANSFERS / ALL tabs (the tabs are shortcuts for the common picks); values
+// are what the list API's `flow` param takes, incl. the comma-joined set.
+const TYPE_FILTER_ITEMS: Record<string, string> = {
+  all: "ALL TYPES",
+  spend: "SPEND",
+  income: "INCOME",
+  "transfer,payment": "TRANSFERS + CARD PMTS",
+  transfer: "TRANSFER",
+  payment: "CARD PMT",
+  fee_interest: "FEE",
 };
 
 function FlowAmount({ tx, className }: { tx: Transaction; className: string }) {
@@ -82,13 +99,20 @@ function FlowAmount({ tx, className }: { tx: Transaction; className: string }) {
   );
 }
 
-function FlowLabel({ flow }: { flow: string }) {
-  const label = FLOW_DISPLAY[flow]?.label;
-  return label ? (
-    <span className="font-mono text-[10px] tracking-widest text-muted-foreground shrink-0">
-      {label}
+// The row's type, coloured like its amount (income sage, transfers muted) so
+// the TYPE column and the AMOUNT column read together. ✱ = set by hand.
+function FlowLabel({ flow, manual, className = "text-[10px]" }: { flow: string; manual?: boolean; className?: string }) {
+  const d = FLOW_DISPLAY[flow];
+  return (
+    <span
+      className={`font-mono tracking-widest shrink-0 ${className} ${d?.color || !d?.muted ? "" : "text-muted-foreground"}`}
+      style={d?.color ? { color: d.color } : undefined}
+      title={manual ? "Type set by hand" : undefined}
+    >
+      {d?.label ?? flow.toUpperCase()}
+      {manual ? " ✱" : ""}
     </span>
-  ) : null;
+  );
 }
 
 // GET /api/tags — a distinct tag with how many transactions carry it.
@@ -206,6 +230,8 @@ export default function TransactionsPage() {
     const res = await fetch(`/api/transactions?${params}`);
     const data = await res.json();
     setTransactions(data.rows);
+    // Keep an open dialog's row in sync (a type change re-runs category rules).
+    setSelected((s) => (s ? (data.rows as Transaction[]).find((r) => r.id === s.id) ?? s : s));
     setTotal(data.total);
     setCategories(data.categories);
     setSources(data.sources ?? []);
@@ -658,6 +684,18 @@ export default function TransactionsPage() {
 
   const filterSelects = (
     <>
+      <Select value={flow} onValueChange={(v) => setFlow(v ?? "all")} items={TYPE_FILTER_ITEMS}>
+        <SelectTrigger className="w-full sm:w-[200px] font-mono text-xs" aria-label="Type">
+          <SelectValue placeholder="Type" />
+        </SelectTrigger>
+        <SelectContent>
+          {Object.entries(TYPE_FILTER_ITEMS).map(([value, label]) => (
+            <SelectItem key={value} value={value} className="font-mono text-xs">
+              {label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Select value={category} onValueChange={(v) => setCategory(v ?? "all")}>
         <SelectTrigger className="w-full sm:w-[200px] font-mono text-xs">
           <SelectValue placeholder="Category" />
@@ -954,7 +992,7 @@ export default function TransactionsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Phones: tappable list rows instead of a five-column table */}
+      {/* Phones: tappable list rows instead of a six-column table */}
       <Card className="md:hidden">
         <CardContent className="p-0">
           {loading ? (
@@ -1008,7 +1046,7 @@ export default function TransactionsPage() {
                       </span>
                     )}
                     <span className="flex items-center gap-2 shrink-0">
-                      <FlowLabel flow={tx.flow} />
+                      <FlowLabel flow={tx.flow} manual={tx.flow_manual === 1} />
                       <span className="font-mono text-[10px] text-muted-foreground uppercase">
                         {tx.txn_date} · {sourceDisplay(tx.source)}
                       </span>
@@ -1039,6 +1077,7 @@ export default function TransactionsPage() {
                 )}
                 <TableHead className="font-mono text-xs tracking-widest">DATE</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest">DESCRIPTION</TableHead>
+                <TableHead className="font-mono text-xs tracking-widest">TYPE</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest">CATEGORY</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest">SOURCE</TableHead>
                 <TableHead className="font-mono text-xs tracking-widest text-right">AMOUNT</TableHead>
@@ -1047,13 +1086,13 @@ export default function TransactionsPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={selectMode ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={selectMode ? 7 : 6} className="text-center py-8 text-muted-foreground">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={selectMode ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={selectMode ? 7 : 6} className="text-center py-8 text-muted-foreground">
                     No transactions found.{" "}
                     <Link href="/upload" className="underline hover:text-foreground transition-colors">
                       Upload a statement first.
@@ -1081,6 +1120,9 @@ export default function TransactionsPage() {
                     <TableCell className="font-mono text-xs">{tx.txn_date}</TableCell>
                     <TableCell className="text-sm max-w-xs truncate">{tx.description}</TableCell>
                     <TableCell>
+                      <FlowLabel flow={tx.flow} manual={tx.flow_manual === 1} className="text-xs" />
+                    </TableCell>
+                    <TableCell>
                       {tx.has_splits ? (
                         <span className="inline-flex items-center px-2 py-0.5 border text-xs font-mono text-muted-foreground">
                           SPLIT
@@ -1102,9 +1144,6 @@ export default function TransactionsPage() {
                           ) : null}
                         </span>
                       )}
-                      <span className="ml-2">
-                        <FlowLabel flow={tx.flow} />
-                      </span>
                     </TableCell>
                     <TableCell className="font-mono text-xs uppercase">
                       {sourceDisplay(tx.source)}
@@ -1243,14 +1282,14 @@ export default function TransactionsPage() {
       </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); setSaveError(null); }}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="font-mono tracking-widest uppercase">
-              RECATEGORIZE
+              EDIT TRANSACTION
             </DialogTitle>
           </DialogHeader>
           {selected && (
-            <div className="space-y-4 mt-2">
+            <div className="space-y-4 mt-2 min-w-0">
               <div className="border p-3">
                 <p className="text-sm font-medium break-words">{selected.description}</p>
                 <p className="font-mono text-xs text-muted-foreground mt-1">
@@ -1289,6 +1328,15 @@ export default function TransactionsPage() {
                   ) : null}
                 </div>
               </div>
+
+              <TypeEditor
+                key={selected.id}
+                tx={selected}
+                onChanged={(next) => {
+                  setSelected((s) => (s ? { ...s, ...next } : s));
+                  fetchTransactions();
+                }}
+              />
 
               {selected.has_splits ? (
                 <div className="space-y-3">

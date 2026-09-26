@@ -14,6 +14,10 @@ export interface TransactionRow {
   amount: number;
   category: string;
   flow: string;
+  // Editable types (migration 015): the imported type once `flow` has been
+  // changed (else null), and 1 when the user set the type by hand.
+  original_flow: string | null;
+  flow_manual: number;
   effective_category: string;
   has_override: number;
   has_splits: number;

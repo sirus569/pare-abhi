@@ -19,6 +19,8 @@ import type {
 } from "../db/transactions";
 import type { StatementRow } from "../db/statements";
 import type { CategoryRule } from "../db/categories";
+import type { Flow, TypeRule } from "../transaction-types";
+import type { TransactionTypeState, TypeRulePreview } from "../db/transaction-types";
 import type { SplitRow, SplitPart } from "../db/splits";
 import type {
   TagCount,
@@ -234,6 +236,21 @@ export interface CategoryRepo {
   // stored base, resolved server-side). Missing rows and SPLIT rows are
   // skipped, never clobbered. Max 500 ids per call.
   bulkOverride(ids: number[], category: string): Promise<{ updated: number; skipped: number }>;
+}
+
+// Editable transaction types (lib/db/transaction-types.ts, migration 015):
+// keyword → type rules plus per-row manual edits. Every mutation re-derives
+// types and then re-runs category rules (category eligibility depends on type);
+// `typed` = rows whose type changed.
+export interface TransactionTypeRepo {
+  listRules(): Promise<TypeRule[]>;
+  addRule(keyword: string, flow: Flow): Promise<{ typed: number }>;
+  deleteRule(id: number): Promise<{ typed: number }>;
+  preview(keyword: string): Promise<TypeRulePreview>;
+  get(transactionId: number): Promise<TransactionTypeState | null>;
+  // false = no such transaction.
+  set(transactionId: number, flow: Flow): Promise<boolean>;
+  reset(transactionId: number): Promise<boolean>;
 }
 
 // Split transactions (lib/db/splits.ts): >= 2 category parts summing to the
@@ -453,6 +470,7 @@ export interface Repo {
   transactions: TransactionRepo;
   statements: StatementRepo;
   categories: CategoryRepo;
+  transactionTypes: TransactionTypeRepo;
   splits: SplitsRepo;
   tags: TagsRepo;
   goals: GoalRepo;

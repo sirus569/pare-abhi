@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { TypeRulesCard } from "@/components/categories/type-rules-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -363,6 +364,8 @@ export default function CategoriesPage() {
           </CardContent>
         </Card>
       )}
+
+      <TypeRulesCard />
 
       <div className="mb-4">
         <Input
