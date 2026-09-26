@@ -38,6 +38,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatCents } from "@/lib/format";
+import { isDepositKind } from "@/lib/db/account-kinds";
 
 interface Transaction {
   id: number;
@@ -47,12 +48,47 @@ interface Transaction {
   amount: number;
   effective_category: string;
   flow: string;
+  account_kind: string;
   has_override: number;
   has_splits: number;
   // Comma-joined lowercase tags ("vacation,work"), or null when untagged.
   tags: string | null;
   // 'outstanding' | 'reimbursed' | null (unmarked).
   reimbursement_status: string | null;
+}
+
+// Direction at a glance. Amounts are stored as magnitudes with `flow` carrying
+// direction, so without this a paycheque and a purchase look identical in ALL.
+// Income is signed + and sage; spend and fees −; transfers and card payments
+// (money moving between your own accounts) stay unsigned and muted.
+const FLOW_DISPLAY: Record<string, { sign: string; color?: string; muted?: boolean; label?: string }> = {
+  spend: { sign: "−" },
+  fee_interest: { sign: "−", label: "FEE" },
+  income: { sign: "+", color: PALETTE.sage, label: "INCOME" },
+  transfer: { sign: "", muted: true, label: "TRANSFER" },
+  payment: { sign: "", muted: true, label: "CARD PMT" },
+};
+
+function FlowAmount({ tx, className }: { tx: Transaction; className: string }) {
+  const d = FLOW_DISPLAY[tx.flow] ?? { sign: "" };
+  return (
+    <span
+      className={`${className} ${d.muted ? "text-muted-foreground" : ""}`}
+      style={d.color ? { color: d.color } : undefined}
+    >
+      {d.sign}
+      {formatCents(tx.amount)}
+    </span>
+  );
+}
+
+function FlowLabel({ flow }: { flow: string }) {
+  const label = FLOW_DISPLAY[flow]?.label;
+  return label ? (
+    <span className="font-mono text-[10px] tracking-widest text-muted-foreground shrink-0">
+      {label}
+    </span>
+  ) : null;
 }
 
 // GET /api/tags — a distinct tag with how many transactions carry it.
@@ -680,6 +716,12 @@ export default function TransactionsPage() {
           <TabsTrigger value="spend" className="font-mono text-xs tracking-widest">
             SPEND
           </TabsTrigger>
+          <TabsTrigger value="income" className="font-mono text-xs tracking-widest">
+            INCOME
+          </TabsTrigger>
+          <TabsTrigger value="transfer,payment" className="font-mono text-xs tracking-widest">
+            TRANSFERS
+          </TabsTrigger>
           <TabsTrigger value="all" className="font-mono text-xs tracking-widest">
             ALL
           </TabsTrigger>
@@ -946,9 +988,7 @@ export default function TransactionsPage() {
                       />
                     )}
                     <p className="text-sm truncate min-w-0">{tx.description}</p>
-                    <span className="font-mono text-sm shrink-0 ml-auto">
-                      {formatCents(tx.amount)}
-                    </span>
+                    <FlowAmount tx={tx} className="font-mono text-sm shrink-0 ml-auto" />
                   </div>
                   <div className="flex items-center justify-between gap-2 mt-1.5">
                     {tx.has_splits ? (
@@ -967,8 +1007,11 @@ export default function TransactionsPage() {
                         ) : null}
                       </span>
                     )}
-                    <span className="font-mono text-[10px] text-muted-foreground uppercase shrink-0">
-                      {tx.txn_date} · {sourceDisplay(tx.source)}
+                    <span className="flex items-center gap-2 shrink-0">
+                      <FlowLabel flow={tx.flow} />
+                      <span className="font-mono text-[10px] text-muted-foreground uppercase">
+                        {tx.txn_date} · {sourceDisplay(tx.source)}
+                      </span>
                     </span>
                   </div>
                 </button>
@@ -1059,12 +1102,15 @@ export default function TransactionsPage() {
                           ) : null}
                         </span>
                       )}
+                      <span className="ml-2">
+                        <FlowLabel flow={tx.flow} />
+                      </span>
                     </TableCell>
                     <TableCell className="font-mono text-xs uppercase">
                       {sourceDisplay(tx.source)}
                     </TableCell>
                     <TableCell className="font-mono text-sm text-right">
-                      {formatCents(tx.amount)}
+                      <FlowAmount tx={tx} className="" />
                     </TableCell>
                   </TableRow>
                 ))
@@ -1387,7 +1433,7 @@ export default function TransactionsPage() {
                       excluded) and to future uploads. Edit to broaden or narrow.
                     </p>
                   </div>
-                  {selected.source === "cibc_chequing" &&
+                  {isDepositKind(selected.account_kind) &&
                     ["income", "payment", "fee_interest"].includes(selected.flow) && (
                       <p className="text-xs text-muted-foreground border p-2">
                         Rules never reclassify chequing income / payment / fee
@@ -1395,7 +1441,7 @@ export default function TransactionsPage() {
                         JUST THIS ONE for that.
                       </p>
                     )}
-                  {selected.source === "cibc_chequing" &&
+                  {isDepositKind(selected.account_kind) &&
                     selected.flow === "transfer" && (
                       <p className="text-xs text-muted-foreground border p-2">
                         Chequing transfers only pick up your own categories from
