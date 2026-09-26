@@ -31,6 +31,7 @@ import type {
 } from "../db/tags";
 import type { SpendingGoal, GoalProgress } from "../db/goals";
 import type { PropertySummary, PropertyType } from "../db/properties";
+import type { InvestmentAccountSummary, InvestmentAccountInput } from "../db/investments";
 import type { ManualEntry, NetWorthData } from "../db/networth";
 import type {
   MonthlyTotal,
@@ -464,6 +465,22 @@ export interface PropertyRepo {
   deleteValueEntry(propertyId: number, id: number): Promise<void>;
 }
 
+// Investment + retirement accounts (lib/db/investments.ts, migration 016):
+// account metadata + a dated balance history. Feeds Net Worth only. WIPED by
+// the /api/data DANGER ZONE wipe, like properties.
+export interface InvestmentRepo {
+  list(): Promise<InvestmentAccountSummary[]>;
+  get(id: number): Promise<InvestmentAccountSummary | null>;
+  create(input: InvestmentAccountInput): Promise<number>;
+  update(id: number, input: InvestmentAccountInput): Promise<void>;
+  setClosed(id: number, closed: boolean): Promise<void>;
+  delete(id: number): Promise<void>;
+  // Upsert on (accountId, as_of_date) — re-entering a date replaces it.
+  setBalance(accountId: number, input: { balance: number; as_of_date: string }): Promise<void>;
+  // accountId scopes the delete — a mismatched pair throws.
+  deleteBalance(accountId: number, id: number): Promise<void>;
+}
+
 // --- The aggregate contract ------------------------------------------------
 
 export interface Repo {
@@ -493,6 +510,7 @@ export interface Repo {
   feedback: FeedbackRepo;
   imports: ImportRepo;
   properties: PropertyRepo;
+  investments: InvestmentRepo;
 
   // Group several writes into ONE durability boundary. Every write issued by `fn`
   // runs against the open connection, and the backend persists exactly once after

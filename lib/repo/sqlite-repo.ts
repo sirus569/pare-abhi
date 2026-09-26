@@ -29,6 +29,7 @@ import type {
   FeedbackRepo,
   ImportRepo,
   PropertyRepo,
+  InvestmentRepo,
 } from "./types";
 
 import {
@@ -128,6 +129,16 @@ import {
   addValueEntry,
   deleteValueEntry,
 } from "../db/properties";
+import {
+  listInvestmentAccountsWithSummary,
+  getInvestmentAccountSummary,
+  addInvestmentAccount,
+  updateInvestmentAccount,
+  setInvestmentAccountClosed,
+  deleteInvestmentAccount,
+  setInvestmentBalance,
+  deleteInvestmentBalance,
+} from "../db/investments";
 import {
   listTypeRules,
   addTypeRule,
@@ -422,5 +433,16 @@ export class SqliteRepo implements Repo {
     deleteExpense: (propertyId, id) => this.write(() => deleteExpense(propertyId, id)),
     addValueEntry: (propertyId, input) => this.write(() => addValueEntry(propertyId, input)),
     deleteValueEntry: (propertyId, id) => this.write(() => deleteValueEntry(propertyId, id)),
+  };
+
+  investments: InvestmentRepo = {
+    list: () => this.read(() => listInvestmentAccountsWithSummary()),
+    get: (id) => this.read(() => getInvestmentAccountSummary(id)),
+    create: (input) => this.write(() => addInvestmentAccount(input)),
+    update: (id, input) => this.write(() => updateInvestmentAccount(id, input)),
+    setClosed: (id, closed) => this.write(() => setInvestmentAccountClosed(id, closed)),
+    delete: (id) => this.write(() => deleteInvestmentAccount(id)),
+    setBalance: (accountId, input) => this.write(() => setInvestmentBalance(accountId, input)),
+    deleteBalance: (accountId, id) => this.write(() => deleteInvestmentBalance(accountId, id)),
   };
 }

@@ -1,11 +1,15 @@
 import { getDb } from "../db";
 import { NOT_HIDDEN_SOURCE_SQL, getAccountMetaMap } from "./accounts";
 import { listPropertiesWithSummary, type PropertySummary } from "./properties";
+import {
+  listInvestmentAccountsWithSummary,
+  type InvestmentAccountSummary,
+} from "./investments";
 
 // Statement-cadence net worth: each statement's closing balance is a
 // point-in-time observation (chequing positive, card balances negative);
-// manual entries (investments, vehicle) step forward from their effective
-// date. Balances carry forward into months without a new observation, so
+// manual entries (vehicle, …) and investment accounts step forward from their
+// effective date. Balances carry forward into months without a new observation, so
 // the series is deliberately point-in-time, not live.
 
 // Card accounts are liabilities (a balance owed); everything else (chequing,
@@ -22,10 +26,12 @@ export interface ManualEntry {
   created_at: string;
 }
 
+export type NetWorthSourceType = "statement" | "manual" | "property" | "investment";
+
 export interface NetWorthAccount {
   name: string;
   label?: string; // nickname (account_meta) — display only; `name` stays the timeline key
-  type: "statement" | "manual" | "property";
+  type: NetWorthSourceType;
   kind: "asset" | "liability";
   current: number; // signed: liabilities negative
   asOf: string;
@@ -119,6 +125,34 @@ export function propertyNetWorthObservations(
   return observations;
 }
 
+export interface InvestmentObservation {
+  name: string; // namespaced timeline key "investment:{id}" — NEVER the account name
+  label: string;
+  closed: boolean;
+  date: string;
+  value: number;
+}
+
+// Pure derivation (no DB access), same rationale as
+// propertyNetWorthObservations(): one asset timeline per investment account,
+// keyed by id so a rename never splits its history and two accounts sharing a
+// name never merge. `closed` lets getNetWorth stop carrying a closed account
+// forward after its last balance — the rolled-over-401k case, which would
+// otherwise double-count into the IRA it moved to.
+export function investmentNetWorthObservations(
+  accounts: InvestmentAccountSummary[]
+): InvestmentObservation[] {
+  return accounts.flatMap((a) =>
+    a.history.map((h) => ({
+      name: `investment:${a.id}`,
+      label: a.name,
+      closed: a.closed,
+      date: h.as_of_date,
+      value: h.balance,
+    }))
+  );
+}
+
 export function listManualEntries(): ManualEntry[] {
   const db = getDb();
   return db
@@ -191,11 +225,11 @@ export function getNetWorth(): NetWorthData {
   const entries = listManualEntries();
 
   // One observation timeline per account / manual item, values signed.
-  const timelines = new Map<string, { kind: "asset" | "liability"; type: "statement" | "manual" | "property"; obs: Observation[] }>();
+  const timelines = new Map<string, { kind: "asset" | "liability"; type: NetWorthSourceType; obs: Observation[] }>();
   const observe = (
     name: string,
     kind: "asset" | "liability",
-    type: "statement" | "manual" | "property",
+    type: NetWorthSourceType,
     date: string,
     value: number
   ) => {
@@ -247,6 +281,14 @@ export function getNetWorth(): NetWorthData {
   for (const o of propertyNetWorthObservations(listPropertiesWithSummary())) {
     labelByName.set(o.name, o.label);
     observe(o.name, o.kind, "property", o.date, o.value);
+  }
+
+  // Investment accounts (migration 016): one asset timeline per account, keyed
+  // `investment:{id}`; closed ones stop carrying forward below.
+  for (const o of investmentNetWorthObservations(listInvestmentAccountsWithSummary())) {
+    labelByName.set(o.name, o.label);
+    if (o.closed) closedNames.add(o.name);
+    observe(o.name, "asset", "investment", o.date, o.value);
   }
 
   if (timelines.size === 0) {
