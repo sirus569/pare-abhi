@@ -86,3 +86,12 @@ real risk is a purchase recorded both as a bank debit and as manual cash.
 - **Type rules aren't in the JSON export / rules import**, and there are no MCP
   tools to read or set types yet.
 
+
+## 6. Transactions filter dropdowns show raw values when closed
+
+The category / source / tag filters on `/transactions` display the internal
+value in the closed trigger (`all`, `boa_chequing`) instead of the option label
+("ALL CATEGORIES", "BOA CHEQUING"): base-ui's `Select.Value` can only show a
+label it has been given, and the labels live in the unmounted popup. Fix: pass
+each `<Select>` an `items` value→label map, as the TYPE filter already does.
+Low priority — cosmetic only.
