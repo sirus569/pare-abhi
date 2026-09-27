@@ -56,6 +56,8 @@ import type {
 } from "../db/merchants";
 import type { DataHealth } from "../db/profile";
 import type { AccountInfo, AccountMetaInput } from "../db/accounts";
+import type { UserSettings } from "../db/settings";
+import type { Currency } from "../currency";
 import type { WaitlistResult, WaitlistEntry } from "../db/waitlist";
 import type { FeedbackResult, FeedbackEntry } from "../db/feedback";
 import type {
@@ -387,6 +389,13 @@ export interface AccountRepo {
   setMeta(source: string, meta: AccountMetaInput): Promise<boolean>;
 }
 
+// User preferences (migration 017): the single display currency every amount
+// is assumed to be in (lib/currency.ts). Per-user on hosted (lives in the DO).
+export interface SettingsRepo {
+  get(): Promise<UserSettings>;
+  setCurrency(currency: Currency): Promise<void>;
+}
+
 export interface WaitlistRepo {
   join(email: string, source?: string): Promise<WaitlistResult>;
   count(): Promise<number>;
@@ -506,6 +515,7 @@ export interface Repo {
   merchants: MerchantRepo;
   profile: ProfileRepo;
   accounts: AccountRepo;
+  settings: SettingsRepo;
   waitlist: WaitlistRepo;
   feedback: FeedbackRepo;
   imports: ImportRepo;

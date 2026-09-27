@@ -29,21 +29,21 @@ per deposit-kind account (`isDepositKind`, excluding hidden/closed via
 forecast anchor should become that multi-account sum (needs per-account
 staleness handling — anchors from different statement dates don't add cleanly).
 
-## 2. Currency is always CAD
+## 2. Currency follow-ups
 
-**Gap.** Pare has no notion of currency. Every amount is treated as CAD
-(formatters hardcode it, e.g. `lib/db/insights.ts`). A US account — imported via
-OFX, SimpleFIN, or the Bank of America CSV parser — has its USD balances summed
-into net worth and its USD spend mixed into every chart as if it were CAD.
+The single-currency setting shipped (`user_settings.currency`, migration 017;
+`lib/currency.ts`; picked at self-host signup, changed in /profile; CAD and USD
+only). Still open:
 
-**Decided direction.** Pare stays single-currency: ALL data is assumed to be in
-one currency, which the user picks once at setup (first-run profile creation)
-and can change later in /profile. No per-account currency, no FX conversion.
-- Store the choice on the profile (`app_user`), default CAD for existing installs.
-- Replace every hardcoded `"CAD"` formatter (e.g. `lib/db/insights.ts`,
-  `lib/format.ts`, the share card) with the profile currency.
-- Mixing accounts in different real-world currencies stays unsupported by
-  design; the setup copy should say so.
+- **No mismatch warning on import.** OFX `CURDEF` and SimpleFIN's per-account
+  `currency` are read but ignored, so a USD file imported into a CAD profile is
+  added in silently. Warn (don't block) when they disagree with the setting.
+- **Hosted signup has no picker.** Hosted sign-up waits for email verification
+  before a session exists, so the currency can only be set in /profile
+  afterwards (defaults to CAD). A first-dashboard-visit prompt would close this.
+- **Hand-written `$`.** `formatK` and a few inline labels print a literal `$`.
+  That is correct for CAD and USD; a non-dollar currency would need them routed
+  through `formatMoney`.
 
 ## 3. Properties are only partially tracked
 

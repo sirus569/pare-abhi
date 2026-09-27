@@ -166,11 +166,12 @@ async function handleSelfHostUpload(request: NextRequest) {
         const { deriveSafeToSpend } = await import("@/lib/safe-to-spend");
         const s = deriveSafeToSpend(fc);
         if (s?.status !== "short") return;
-        const { formatCurrency, formatDayShort } = await import("@/lib/format");
+        const { formatMoney, formatDayShort } = await import("@/lib/format");
+        const { currency } = await repo.settings.get();
         const { sendPushToAll } = await import("@/lib/push/webpush");
         await sendPushToAll({
           title: "Forecast heads-up",
-          body: `Projected ${formatCurrency(Math.abs(s.cushion))} below zero around ${formatDayShort(s.lowestDate)}, before the next payday.`,
+          body: `Projected ${formatMoney(Math.abs(s.cushion), currency)} below zero around ${formatDayShort(s.lowestDate)}, before the next payday.`,
           url: "/dashboard",
         });
       })().catch(() => {});

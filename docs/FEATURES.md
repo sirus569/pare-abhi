@@ -39,9 +39,9 @@ section, extra options you can ignore until you want them.
 
 ## First steps
 
-1. **Create your profile.** The first time you open Pare, it asks for a name
-   and a password. Pare has one user, and this password keeps anyone else on
-   your network out.
+1. **Create your profile.** The first time you open Pare, it asks for a name,
+   a password, and your currency (Canadian or US dollars). Pare has one user,
+   and this password keeps anyone else on your network out.
 2. **Upload a statement.** Open **Upload** from the sidebar and drop in a
    recent statement from your bank or credit card. See
    [Importing your data](#importing-your-data) for which files work.
@@ -385,6 +385,9 @@ Click your name in the sidebar to open **Profile**.
   and per account: the latest statement, a 12-month coverage strip, and a
   reminder when an account hasn't been updated in over 40 days.
 - **Statements:** every statement you've loaded, with an option to remove one.
+- **Currency:** the one currency all your amounts are in. Pare doesn't
+  convert between currencies: if you have accounts in two currencies, convert
+  them yourself.
 - **Security:** change your password.
 - **Export:** download everything as CSV or JSON, or **Backup DB** for a
   complete copy of the database.
@@ -449,7 +452,9 @@ What Pare doesn't do yet, stated plainly:
 - **Debit-card spending isn't in the Overview charts.** Purchases from a bank
   account appear in Cashflow, Income, and Forecast, but Overview and By
   category count only credit-card and cash spending.
-- **Everything is in Canadian dollars.** There's no currency setting yet.
+- **One currency.** Every account is assumed to be in the currency you picked.
+  Pare doesn't convert, and doesn't yet warn when an imported file is in a
+  different currency.
 - **No combined cash total.** Pare doesn't show one number for all your bank
   accounts together.
 - **Investments are balances only.** Pare tracks what each account is worth,

@@ -2,22 +2,78 @@
 // currency, month labels, and Recharts tooltip theming can't drift between
 // pages/tabs (they used to be re-declared per file).
 
+import {
+  CURRENCY_LOCALES,
+  DEFAULT_CURRENCY,
+  isCurrency,
+  type Currency,
+} from "./currency";
+
 export const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
+// Display currency (lib/currency.ts). Client-side this is the signed-in user's
+// setting: seeded from localStorage at module load so the first paint is right,
+// then confirmed from /api/settings by <CurrencySync> in the root layout. On the
+// server there is no per-user module state (hosted serves many users from one
+// isolate) — server callers pass the currency explicitly, read from the repo.
+const CURRENCY_STORAGE_KEY = "pare-currency";
+
+let displayCurrency: Currency = DEFAULT_CURRENCY;
+if (typeof window !== "undefined") {
+  try {
+    const stored = localStorage.getItem(CURRENCY_STORAGE_KEY);
+    if (isCurrency(stored)) displayCurrency = stored;
+  } catch {
+    // storage blocked (private mode) — the sync fetch still sets it
+  }
+}
+
+export const getDisplayCurrency = (): Currency => displayCurrency;
+
+export function setDisplayCurrency(currency: Currency): void {
+  displayCurrency = currency;
+  try {
+    localStorage.setItem(CURRENCY_STORAGE_KEY, currency);
+  } catch {
+    // non-browser / storage blocked — the in-memory value still applies
+  }
+}
+
+// Intl.NumberFormat construction is slow relative to .format(), and these run
+// per chart tick / table row — cache one formatter per (currency, precision).
+const formatters = new Map<string, Intl.NumberFormat>();
+function moneyFormat(currency: Currency, cents: boolean): Intl.NumberFormat {
+  const key = `${currency}:${cents}`;
+  let f = formatters.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat(CURRENCY_LOCALES[currency], {
+      style: "currency",
+      currency,
+      ...(cents ? {} : { maximumFractionDigits: 0 }),
+    });
+    formatters.set(key, f);
+  }
+  return f;
+}
+
+// Explicit-currency form — for SERVER callers (insights, push bodies), which
+// read the currency from the repo instead of the client-side module state.
+export const formatMoney = (value: number, currency: Currency, opts?: { cents?: boolean }) =>
+  moneyFormat(currency, opts?.cents ?? false).format(value);
+
+// Client formatters below take ONE argument on purpose: they're handed straight
+// to Recharts formatters/.map(), which pass extra args (index, …) that must not
+// land in a currency slot.
+
 // Whole dollars — the default for charts/stat cards.
-export const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0,
-  }).format(value);
+export const formatCurrency = (value: number) => formatMoney(value, displayCurrency);
 
 // With cents — for transaction rows and per-charge amounts.
 export const formatCents = (value: number) =>
-  new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(value);
+  formatMoney(value, displayCurrency, { cents: true });
 
 export const formatSigned = (value: number) =>
   `${value >= 0 ? "+" : "−"}${formatCurrency(Math.abs(value))}`;

@@ -25,6 +25,7 @@ import {
 import { PALETTE } from "@/lib/colors";
 import { Wordmark } from "@/components/layout/wordmark";
 import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
+import { CurrencySync } from "./currency-sync";
 
 const REPO_URL = "https://github.com/itsgotpower/pare";
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
@@ -134,6 +135,7 @@ export function Sidebar() {
 
   return (
     <>
+      <CurrencySync />
       {/* Mobile top bar — wordmark + actions (upload is an action, not a tab) */}
       <header className="md:hidden order-first shrink-0 z-40 bg-card border-b border-border pt-[env(safe-area-inset-top)]">
         <div className="flex items-center justify-between h-12 pl-4 pr-1">

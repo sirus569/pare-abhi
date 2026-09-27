@@ -5,10 +5,24 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ShieldCheck, Lock, KeyRound } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { Turnstile, turnstileConfigured } from "@/components/turnstile";
 import { purgeDataCaches } from "@/lib/purge-data-cache";
+import {
+  CURRENCIES,
+  CURRENCY_LABELS,
+  guessCurrency,
+  type Currency,
+} from "@/lib/currency";
+import { setDisplayCurrency } from "@/lib/format";
 
 // In-app redirect target from ?from=. Only follow same-app paths — never an
 // absolute URL from the query string. Default to /dashboard (the app entry);
@@ -161,6 +175,11 @@ function SelfHostForm({
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  // Only rendered after the client-side mode probe, so reading navigator here
+  // can't cause a hydration mismatch.
+  const [currency, setCurrency] = useState<Currency>(() =>
+    guessCurrency(typeof navigator !== "undefined" ? navigator.language : undefined)
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   // Self-host is single-user, but let the visitor switch between first-run
@@ -184,7 +203,7 @@ function SelfHostForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           showCreate
-            ? { action: "setup", display_name: displayName, password }
+            ? { action: "setup", display_name: displayName, password, currency }
             : { action: "login", password }
         ),
       });
@@ -193,6 +212,7 @@ function SelfHostForm({
         setError(data.error || "Something went wrong");
         return;
       }
+      if (showCreate) setDisplayCurrency(currency);
       router.replace(from);
       router.refresh();
     } catch {
@@ -255,6 +275,31 @@ function SelfHostForm({
               autoComplete="new-password"
               required
             />
+          </div>
+        )}
+
+        {showCreate && (
+          <div className="space-y-1.5">
+            <label className={labelCls}>Currency</label>
+            <Select
+              value={currency}
+              onValueChange={(v) => v && setCurrency(v as Currency)}
+            >
+              <SelectTrigger className="w-full rounded-none font-mono text-sm">
+                <SelectValue>{(v: Currency) => CURRENCY_LABELS[v]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map((c) => (
+                  <SelectItem key={c} value={c} className="font-mono text-xs">
+                    {CURRENCY_LABELS[c]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="font-mono text-[10px] tracking-wide text-muted-foreground">
+              Every account is treated as this currency — Pare doesn&apos;t
+              convert. Change it later in Profile.
+            </p>
           </div>
         )}
 

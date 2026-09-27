@@ -25,6 +25,7 @@ import type {
   MerchantRepo,
   ProfileRepo,
   AccountRepo,
+  SettingsRepo,
   WaitlistRepo,
   FeedbackRepo,
   ImportRepo,
@@ -106,6 +107,7 @@ import { getDailySpend } from "../db/heatmap";
 import { getMerchants, getMerchantDetail } from "../db/merchants";
 import { getDataHealth } from "../db/profile";
 import { listAccounts, setAccountMeta } from "../db/accounts";
+import { getSettings, setCurrency } from "../db/settings";
 import { joinWaitlist, waitlistCount, listWaitlist } from "../db/waitlist";
 import { submitFeedback, listFeedback } from "../db/feedback";
 import {
@@ -399,6 +401,11 @@ export class SqliteRepo implements Repo {
   accounts: AccountRepo = {
     list: () => this.read(() => listAccounts()),
     setMeta: (source, meta) => this.write(() => setAccountMeta(source, meta)),
+  };
+
+  settings: SettingsRepo = {
+    get: () => this.read(() => getSettings()),
+    setCurrency: (currency) => this.write(() => setCurrency(currency)),
   };
 
   feedback: FeedbackRepo = {
