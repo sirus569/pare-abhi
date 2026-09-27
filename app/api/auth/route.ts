@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { getScopedRepo } from "@/lib/repo/scoped";
 import { isHostedMode } from "@/lib/auth/resolve";
+import { isCurrency } from "@/lib/currency";
 import {
   createSessionToken,
   verifySessionToken,
@@ -102,7 +103,16 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      if (body.currency !== undefined && !isCurrency(body.currency)) {
+        return Response.json({ error: "Unsupported currency" }, { status: 400 });
+      }
       createUser(String(body.display_name || "").trim(), password);
+      // The one currency every amount is assumed to be in (lib/currency.ts).
+      // Stored in the data DB (user_settings), not app_user, so the setting
+      // reads the same way on both deploy targets; omitted = the CAD default.
+      if (body.currency !== undefined) {
+        await (await getScopedRepo(request))?.settings.setCurrency(body.currency);
+      }
       store.set(SESSION_COOKIE, await createSessionToken(), cookieOpts(request));
       return Response.json({ success: true });
     }

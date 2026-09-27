@@ -1,4 +1,6 @@
 import { getDb } from "../db";
+import { DEFAULT_CURRENCY, type Currency } from "../currency";
+import { formatMoney } from "../format";
 import { merchantDisplay, merchantSlug } from "../merchant-key";
 import { SPEND_WHERE } from "./account-kinds";
 import { getForecast } from "./forecast";
@@ -6,6 +8,7 @@ import { listGoals } from "./goals";
 import { getIncomeVsSpend } from "./income";
 import { listPropertiesWithSummary, type PropertySummary } from "./properties";
 import { median } from "./stats";
+import { getCurrency } from "./settings";
 import { getSubscriptions } from "./subscriptions";
 
 export interface Insight {
@@ -21,13 +24,6 @@ const SEVERITY_ORDER: Record<Insight["severity"], number> = {
   good: 2,
   info: 3,
 };
-
-const fmt = (v: number) =>
-  new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0,
-  }).format(v);
 
 // Unusual one-off charge detection (insight #5) — a single charge is an
 // anomaly RELATIVE to its own merchant's (or, lacking merchant history, its
@@ -68,7 +64,11 @@ interface CatTotal {
 // uninformative fixture — unlike an over-budget alert, "still profitable"
 // isn't news every time it's shown) and one insight per losing property,
 // never rolled up into a single "N losing rentals" line.
-export function rentalNetIncomeInsights(properties: PropertySummary[]): Insight[] {
+export function rentalNetIncomeInsights(
+  properties: PropertySummary[],
+  currency: Currency = DEFAULT_CURRENCY
+): Insight[] {
+  const fmt = (v: number) => formatMoney(v, currency);
   const insights: Insight[] = [];
   for (const p of properties) {
     if (p.property_type !== "rental") continue;
@@ -92,13 +92,17 @@ export function rentalNetIncomeInsights(properties: PropertySummary[]): Insight[
 export function getInsights(): Insight[] {
   const db = getDb();
   const insights: Insight[] = [];
+  // The user's display currency (migration 017) — read here, never from
+  // lib/format's client-side module state (this runs server-side / in the DO).
+  const currency = getCurrency();
+  const fmt = (v: number) => formatMoney(v, currency);
 
   // Evaluated BEFORE the months/early-return below on purpose: rental net
   // income comes entirely from Properties' own stored numbers, never from
   // v_transactions, so a user with properties but zero uploaded statements
   // must still see this — the early return below is specific to the
   // transaction-derived insights that follow it, not a "no data at all" gate.
-  insights.push(...rentalNetIncomeInsights(listPropertiesWithSummary()));
+  insights.push(...rentalNetIncomeInsights(listPropertiesWithSummary(), currency));
 
   const months = (
     db

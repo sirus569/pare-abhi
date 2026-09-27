@@ -18,6 +18,7 @@ import { purgeDataCaches } from "@/lib/purge-data-cache";
 import { LogOut, Pencil, Download, Database, FileJson, Settings2, MessageSquarePlus } from "lucide-react";
 import { IngestInbox } from "@/components/profile/ingest-inbox";
 import { StatementsCard } from "@/components/profile/statements-card";
+import { CurrencyCard } from "@/components/profile/currency-card";
 import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
 import { authClient } from "@/lib/auth/client";
 
@@ -818,7 +819,9 @@ export default function ProfilePage() {
 
       <StatementsCard onChanged={fetchProfile} />
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <CurrencyCard labelClass={labelClass} />
+
         <Card className="rounded-none ring-0 border border-border py-0 gap-0">
           <div className="px-4 pt-4">
             <span className={labelClass}>Security</span>
